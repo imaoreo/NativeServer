@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"dev.imaoreo/NativeServer/db"
-	"dev.imaoreo/NativeServer/routes/auth"
 	"dev.imaoreo/NativeServer/routes/cache"
 	"dev.imaoreo/NativeServer/routes/challenge"
 	"dev.imaoreo/NativeServer/routes/health"
@@ -129,7 +128,6 @@ func main() {
 
 	r.Get("/api/v1/challenge", challenge.MakeGetChallengeHandler(rdb))
 	r.Post("/api/v1/challenge", challenge.MakePostChallengeHandler(rdb, dbConn, attestor, appleTeamID, appleBundleID))
-	r.Post("/api/v1/auth/qr-init", auth.MakePostQRInitHandler(rdb))
 
 	r.NotFound(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)

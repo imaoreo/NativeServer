@@ -1,21 +1,17 @@
 services:
   api:
-    image: oven/bun:alpine
+    build: .
     container_name: grind
     restart: unless-stopped
     ports:
       - "3000:3000"
     environment:
-      - NODE_ENV=development
+      - NODE_ENV=production
       - DATABASE_URL=postgresql://grind_user:secure_password123@postgres:5432/grind_db?schema=public
       - REDIS_URL=redis://redis:6379
       - PORT=3000
     volumes:
-      - .:/usr/src/app
       - /srv/grind/images:/usr/src/app/public/cache
-    working_dir: /usr/src/app
-    # Bun runs the script directly with zero compilation overhead
-    command: bun run --watch src/index.ts
     depends_on:
       - postgres
       - redis

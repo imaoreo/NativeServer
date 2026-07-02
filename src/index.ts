@@ -67,7 +67,7 @@ Bun.serve({
       }
     }
 
-    // 3. ROUTE: Health Check
+    // Health Route
     if (url.pathname === '/health') {
       return Response.json({ status: 'healthy', runtime: 'Native Grind' });
     }

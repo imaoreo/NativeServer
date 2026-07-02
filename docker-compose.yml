@@ -1,0 +1,53 @@
+services:
+  api:
+    image: oven/bun:alpine
+    container_name: grind
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://grind_user:secure_password123@postgres:5432/grind_db?schema=public
+      - REDIS_URL=redis://redis:6379
+      - PORT=3000
+    volumes:
+      - .:/usr/src/app
+      - /srv/grind/images:/usr/src/app/public/cache
+    working_dir: /usr/src/app
+    # Bun runs the script directly with zero compilation overhead
+    command: bun run --watch src/index.ts
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - grind
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: grind-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=grind_user
+      - POSTGRES_PASSWORD=secure_password123
+      - POSTGRES_DB=grind_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - /srv/grind/postgres:/var/lib/postgresql/data
+    networks:
+      - grind
+
+  redis:
+    image: redis:7-alpine
+    container_name: grind-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - /srv/grind/redis:/data
+    networks:
+      - grind
+
+networks:
+  grind:
+    driver: bridge

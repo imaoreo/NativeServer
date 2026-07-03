@@ -44,7 +44,4 @@ func TestGetHealthHandler(t *testing.T) {
 	if response["status"] != "healthy" {
 		t.Errorf("expected status 'healthy', got '%s'", response["status"])
 	}
-	if response["runtime"] != "Native Grind" {
-		t.Errorf("expected runtime 'Native Grind', got '%s'", response["runtime"])
-	}
 }

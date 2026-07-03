@@ -12,9 +12,7 @@ import (
 
 	"dev.imaoreo/NativeServer/db"
 	"dev.imaoreo/NativeServer/discord"
-	"dev.imaoreo/NativeServer/routes"
 	"dev.imaoreo/NativeServer/routes/cache"
-	"dev.imaoreo/NativeServer/routes/challenge"
 	"dev.imaoreo/NativeServer/routes/health"
 	"dev.imaoreo/NativeServer/routes/websocket"
 
@@ -155,16 +153,7 @@ func main() {
 	// Routes
 	r.Get("/health", health.GetHealthHandler)
 	r.Get("/public/cache/*", cache.MakeGetCacheHandler(cacheDir))
-	r.Get("/ws", websocket.MakeWebsocketHandler(wsHub))
-
-	r.Get("/api/v1/challenge", challenge.MakeGetChallengeHandler(rdb))
-	r.Post("/api/v1/challenge", challenge.MakePostChallengeHandler(rdb, dbConn, attestor, appleTeamID, appleBundleID))
-
-	r.Group(func(r chi.Router) {
-		r.Use(routes.VerifyAssertionMiddleware(rdb, dbConn, appleTeamID, appleBundleID))
-		
-		r.Post("/api/v1/challenge/health", challenge.ChallengeHealthHandler)
-	})
+	r.Get("/ws", websocket.MakeWebsocketHandler(wsHub, rdb, dbConn, dbConn, attestor, appleTeamID, appleBundleID))
 
 	r.NotFound(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)

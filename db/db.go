@@ -69,7 +69,7 @@ func GetDeviceKey(db DBQueryConnector, ctx context.Context, keyID string) (strin
 
 type CompanionDevice struct {
 	ID                 string
-	ProfileID          sql.NullString
+	DeviceKeyID        sql.NullString
 	DiscordID          sql.NullString
 	APIKey             sql.NullString
 	RegistrationSource string
@@ -78,11 +78,11 @@ type CompanionDevice struct {
 	UpdatedAt          string
 }
 
-func GetCompanionDeviceCount(db DBQueryConnector, ctx context.Context, profileID string) (int, error) {
+func GetCompanionDeviceCountByDeviceKey(db DBQueryConnector, ctx context.Context, deviceKeyID string) (int, error) {
 	var count int
 	err := db.QueryRowContext(ctx, `
-		SELECT COUNT(*) FROM "CompanionDevice" WHERE "profileId" = $1 AND "isOverride" = FALSE
-	`, profileID).Scan(&count)
+		SELECT COUNT(*) FROM "CompanionDevice" WHERE "deviceKeyId" = $1 AND "isOverride" = FALSE
+	`, deviceKeyID).Scan(&count)
 	return count, err
 }
 
@@ -94,12 +94,12 @@ func GetCompanionDeviceCountByDiscordID(db DBQueryConnector, ctx context.Context
 	return count, err
 }
 
-func SaveCompanionDevice(db DBConnector, ctx context.Context, profileID, discordID, apiKey, source string, isOverride bool) error {
+func SaveCompanionDevice(db DBConnector, ctx context.Context, deviceKeyID, discordID, apiKey, source string, isOverride bool) error {
 	id := uuid.New().String()
 	
-	var pID, dID, aKey *string
-	if profileID != "" {
-		pID = &profileID
+	var dkID, dID, aKey *string
+	if deviceKeyID != "" {
+		dkID = &deviceKeyID
 	}
 	if discordID != "" {
 		dID = &discordID
@@ -109,9 +109,9 @@ func SaveCompanionDevice(db DBConnector, ctx context.Context, profileID, discord
 	}
 
 	_, err := db.ExecContext(ctx, `
-		INSERT INTO "CompanionDevice" ("id", "profileId", "discordId", "apiKey", "registrationSource", "isOverride", "createdAt", "updatedAt")
+		INSERT INTO "CompanionDevice" ("id", "deviceKeyId", "discordId", "apiKey", "registrationSource", "isOverride", "createdAt", "updatedAt")
 		VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-	`, id, pID, dID, aKey, source, isOverride)
+	`, id, dkID, dID, aKey, source, isOverride)
 	return err
 }
 

@@ -1,84 +1,71 @@
-# Database & Cache Update Guide
+# Database & Cache Guide
 
-This guide explains how to update the PostgreSQL database schema using Prisma migrations and how to interact with the Redis cache in this project.
+This guide explains how to work with the PostgreSQL database and Redis cache in the Go server, which uses **Goose** for version-tracked database migrations.
 
 ---
 
-## 1. Updating the PostgreSQL Schema (Prisma Migrations)
+## 1. Database Schema migrations via Goose
 
-We use **Prisma Migrations** to manage schema changes in a structured, SQL-backed manner.
+We use [pressly/goose/v3](https://github.com/pressly/goose) to run database migrations. Migrations are written as plain SQL files and embedded directly into the Go binary using standard `go:embed`.
 
-### Step 1: Modify the Schema
-Open the Prisma schema file at [prisma/schema.prisma](file:///Users/jaybr/srv/projects/NativeServer/prisma/schema.prisma) and make your changes (e.g., adding a new model or updating fields):
+On server startup, the server automatically reads the embedded migrations, creates a tracking table called `goose_db_version` if it is missing, checks which migrations have already run, and applies any new migrations.
 
-```prisma
-model User {
-  id    Int     @id @default(autoincrement())
-  email String  @unique
-  name  String?
-}
+### Migration Files
+All migrations are stored under the [db/migrations/](db/migrations/) directory:
+- [00001_init.sql](db/migrations/00001_init.sqll): Initial schema creation (`ProfileImage` and `DeviceKey` tables).
 
-// Example of a new model:
-model Device {
-  id        String   @id @default(uuid())
-  deviceId  String   @unique
-  createdAt DateTime @default(now())
-}
-```
+---
 
-### Step 2: Create and Apply the Migration Locally
-With the local PostgreSQL container running (via `docker compose up -d postgres`), generate the SQL migration files by running:
+### How to Create & Apply a New Migration
 
-```bash
-DATABASE_URL="postgresql://grind_user:secure_password123@localhost:5432/grind_db?schema=public" bunx prisma migrate dev --name <migration_name>
-```
-*Replace `<migration_name>` with a short snake_case description of your change (e.g., `add_device_model`).*
+If you need to make schema changes (e.g., adding a table, adding a column, or reverting a change):
 
-**What this command does:**
-1. Compares your `schema.prisma` with the current state of your local database.
-2. Generates a new SQL migration script inside `prisma/migrations/`.
-3. Applies that SQL script to your local database.
-4. Regenerates the TypeScript types for `@prisma/client`.
+1. **Create a new migration file** inside the [db/migrations/](db/migrations/) directory using a sequential numbering prefix:
+   - For example: `db/migrations/00002_add_user_table.sql`.
+2. **Define the UP and DOWN blocks** in the SQL file using Goose annotation headers:
+   ```sql
+   -- +goose Up
+   -- +goose StatementBegin
+   CREATE TABLE "User" (
+       "id" TEXT NOT NULL PRIMARY KEY,
+       "email" TEXT NOT NULL UNIQUE
+   );
+   -- +goose StatementEnd
 
-### Step 3: Commit Migration Files
-Always commit the generated folder under `prisma/migrations/` to version control (e.g., Git) so other environments can apply the exact same migrations.
-
-### Step 4: Deploying to Production / Docker Containers
-When the Docker container starts up, it automatically runs the migration deploy step defined in the [Dockerfile](file:///Users/jaybr/srv/projects/NativeServer/Dockerfile):
-
-```bash
-bunx prisma migrate deploy
-```
-This is fully non-interactive and applies any new SQL migration files that have not yet been run on the production database.
+   -- +goose Down
+   -- +goose StatementBegin
+   DROP TABLE IF EXISTS "User";
+   -- +goose StatementEnd
+   ```
+3. **Run/Rebuild the server**. The server will automatically run the new migration on startup. If a migration needs to be rolled back or managed manually, you can use the `goose` CLI tool or write a helper command.
 
 ---
 
 ## 2. Using & Updating Redis
 
-We use Bun's native high-performance Redis client (`RedisClient`).
+We use the official Go Redis client (`github.com/redis/go-redis/v9`).
 
 ### Configuration
-The Redis client is instantiated in [src/index.ts](file:///Users/jaybr/srv/projects/NativeServer/src/index.ts) using the environment variable `REDIS_URL`, falling back to `localhost` if unset:
-
-```typescript
-const redis = new RedisClient(process.env.REDIS_URL || "redis://localhost:6379");
+The Redis client is instantiated in [main.go](/main.go) using the `REDIS_URL` environment variable, falling back to `redis://localhost:6379` if unset:
+```go
+redisOpt, err := redis.ParseURL(redisURL)
+rdb := redis.NewClient(redisOpt)
 ```
 
-### Interacting with Redis in Code
-Here are the common commands to write, update, or read cache keys:
-
-```typescript
+### Interacting with Redis in Go
+Common commands:
+```go
 // 1. Set a standard key-value pair
-await redis.set("my-key", "some-value");
+err := rdb.Set(ctx, "my-key", "some-value", 0).Err()
 
-// 2. Set a key with an expiration Time-To-Live (TTL) in seconds (e.g., 5 minutes / 300 seconds)
-await redis.setex("handshake:token_123", 300, "device_id_abc");
+// 2. Set a key with an expiration Time-To-Live (TTL) (e.g., 5 minutes)
+err := rdb.Set(ctx, "handshake:token_123", "device_id_abc", 5*time.Minute).Err()
 
 // 3. Retrieve a value
-const value = await redis.get("handshake:token_123");
+val, err := rdb.Get(ctx, "handshake:token_123").Result()
 
 // 4. Delete a key
-await redis.del("my-key");
+err := rdb.Del(ctx, "my-key").Err()
 ```
 
 ---
@@ -89,6 +76,5 @@ await redis.del("my-key");
 | :--- | :--- |
 | **Start DB & Redis Containers** | `docker compose up -d postgres redis` |
 | **Stop All Containers** | `docker compose down` |
-| **Create Local Migration** | `DATABASE_URL="postgresql://grind_user:secure_password123@localhost:5432/grind_db?schema=public" bunx prisma migrate dev --name <name>` |
+| **Build & Run Go Server Locally** | `go run .` |
 | **Rebuild & Run App Container** | `docker compose up -d --build` |
-| **View Database GUI (Studio)** | `DATABASE_URL="postgresql://grind_user:secure_password123@localhost:5432/grind_db?schema=public" bunx prisma studio` |

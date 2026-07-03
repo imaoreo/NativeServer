@@ -1,18 +1,24 @@
-FROM oven/bun:alpine AS base
+# Build stage
+FROM golang:1.26-alpine AS builder
 WORKDIR /usr/src/app
 
-COPY package.json bun.lock ./
-
-RUN bun install --frozen-lockfile
+COPY go.mod go.sum ./
+RUN go mod download
 
 COPY . .
+RUN CGO_ENABLED=0 go build -ldflags="-w -s" -o server main.go
 
-RUN bunx prisma generate
+# Run stage
+FROM alpine:latest
+WORKDIR /usr/src/app
 
-RUN bun build ./src/index.ts --outfile ./dist/index.js --target=bun
+RUN apk --no-cache add ca-certificates
+
+COPY --from=builder /usr/src/app/server /usr/src/app/server
 
 EXPOSE 3000
 
-ENV NODE_ENV=production
+ENV PORT=3000
+ENV CACHE_DIR=/usr/src/app/public/cache
 
-CMD ["sh", "-c", "bunx prisma migrate deploy && bun dist/index.js"]
+CMD ["/usr/src/app/server"]

@@ -54,3 +54,15 @@ func SaveDeviceKey(db DBConnector, ctx context.Context, keyID string, publicKeyP
 	`, deviceID, keyID, publicKeyPEM)
 	return err
 }
+
+type DBQueryConnector interface {
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+}
+
+func GetDeviceKey(db DBQueryConnector, ctx context.Context, keyID string) (string, error) {
+	var publicKeyPEM string
+	err := db.QueryRowContext(ctx, `
+		SELECT "publicKey" FROM "DeviceKey" WHERE "keyId" = $1
+	`, keyID).Scan(&publicKeyPEM)
+	return publicKeyPEM, err
+}

@@ -43,6 +43,7 @@ func (m *MockRedisCmdable) Del(ctx context.Context, keys ...string) *redis.IntCm
 
 type MockDBConnector struct {
 	ExecFunc func(ctx context.Context, query string, args ...any) (sql.Result, error)
+	QueryRowFunc func(ctx context.Context, query string, args ...any) *sql.Row
 }
 
 func (m *MockDBConnector) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
@@ -50,6 +51,13 @@ func (m *MockDBConnector) ExecContext(ctx context.Context, query string, args ..
 		return m.ExecFunc(ctx, query, args...)
 	}
 	return nil, nil
+}
+
+func (m *MockDBConnector) QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row {
+	if m.QueryRowFunc != nil {
+		return m.QueryRowFunc(ctx, query, args...)
+	}
+	return nil
 }
 
 type MockAttestor struct {

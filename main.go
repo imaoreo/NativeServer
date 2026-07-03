@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"dev.imaoreo/NativeServer/db"
+	"dev.imaoreo/NativeServer/routes"
 	"dev.imaoreo/NativeServer/routes/cache"
 	"dev.imaoreo/NativeServer/routes/challenge"
 	"dev.imaoreo/NativeServer/routes/health"
@@ -128,6 +129,12 @@ func main() {
 
 	r.Get("/api/v1/challenge", challenge.MakeGetChallengeHandler(rdb))
 	r.Post("/api/v1/challenge", challenge.MakePostChallengeHandler(rdb, dbConn, attestor, appleTeamID, appleBundleID))
+
+	r.Group(func(r chi.Router) {
+		r.Use(routes.VerifyAssertionMiddleware(rdb, dbConn, appleTeamID, appleBundleID))
+		
+		r.Post("/api/v1/challenge/health", challenge.ChallengeHealthHandler)
+	})
 
 	r.NotFound(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)

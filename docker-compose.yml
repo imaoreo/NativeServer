@@ -4,7 +4,7 @@ services:
     container_name: grind
     restart: unless-stopped
     environment:
-      - DATABASE_URL=postgresql://grind_user:secure_password123@postgres:5432/grind_db?schema=public
+      - DATABASE_URL=postgresql://grind_user:secure_password123@postgres:5432/grind_db?sslmode=disable
       - REDIS_URL=redis://redis:6379
       - PORT=3000
     volumes:

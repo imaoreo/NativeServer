@@ -62,7 +62,7 @@ func initEnv() {
 
 	databaseURL = os.Getenv("DATABASE_URL")
 	if databaseURL == "" {
-		log.Fatal("DATABASE_URL environment variable is required")
+		databaseURL = "postgresql://grind_user:secure_password123@localhost:5432/grind_db?sslmode=disable"
 	}
 
 	redisURL = os.Getenv("REDIS_URL")

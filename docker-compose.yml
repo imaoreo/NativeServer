@@ -3,7 +3,6 @@ services:
     build: .
     container_name: grind
     restart: unless-stopped
-    ports:
     environment:
       - DATABASE_URL=postgresql://grind_user:secure_password123@postgres:5432/grind_db?schema=public
       - REDIS_URL=redis://redis:6379

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"crypto/x509"
-	"database/sql"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -25,9 +24,9 @@ type ChallengeRequest struct {
 }
 
 func MakePostChallengeHandler(
-	rdb *redis.Client,
-	dbConn *sql.DB,
-	attestor *appattest.AttestorImpl,
+	rdb redis.Cmdable,
+	dbConn db.DBConnector,
+	attestor appattest.Attestor,
 	appleTeamID string,
 	appleBundleID string,
 ) http.HandlerFunc {

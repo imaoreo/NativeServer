@@ -14,6 +14,10 @@ import (
 //go:embed migrations/*.sql
 var embedMigrations embed.FS
 
+type DBConnector interface {
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+}
+
 func InitDB(databaseURL string) (*sql.DB, error) {
 	db, err := sql.Open("pgx", databaseURL)
 	if err != nil {
@@ -42,7 +46,7 @@ func InitDB(databaseURL string) (*sql.DB, error) {
 	return db, nil
 }
 
-func SaveDeviceKey(db *sql.DB, ctx context.Context, keyID string, publicKeyPEM string) error {
+func SaveDeviceKey(db DBConnector, ctx context.Context, keyID string, publicKeyPEM string) error {
 	deviceID := uuid.New().String()
 	_, err := db.ExecContext(ctx, `
 		INSERT INTO "DeviceKey" ("id", "keyId", "publicKey", "counter", "createdAt", "updatedAt")

@@ -10,7 +10,7 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-func MakeGetChallengeHandler(rdb *redis.Client) http.HandlerFunc {
+func MakeGetChallengeHandler(rdb redis.Cmdable) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		challenge := uuid.New().String()
 		ctx := r.Context()

@@ -13,6 +13,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 
 	"dev.imaoreo/NativeServer/db"
 	"github.com/redis/go-redis/v9"
@@ -27,6 +28,40 @@ func VerifyAssertionMiddleware(
 ) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// 1. Check for manual Companion API Key (either X-Companion-API-Key or Bearer token)
+			apiKey := r.Header.Get("X-Companion-API-Key")
+			if apiKey == "" {
+				authHeader := r.Header.Get("Authorization")
+				if strings.HasPrefix(authHeader, "Bearer ") {
+					apiKey = strings.TrimPrefix(authHeader, "Bearer ")
+				}
+			}
+
+			// If it's a companion API key, validate it via database
+			if apiKey != "" && (strings.HasPrefix(apiKey, "ng_mac_") || strings.HasPrefix(apiKey, "ng_mac_force_")) {
+				ctx := r.Context()
+				valid, err := db.ValidateCompanionAPIKey(dbConn, ctx, apiKey)
+				if err != nil {
+					w.Header().Set("Content-Type", "application/json")
+					w.WriteHeader(http.StatusInternalServerError)
+					w.Write([]byte(`{"status":"failed","error":"Database error validating API key"}`))
+					return
+				}
+
+				if !valid {
+					w.Header().Set("Content-Type", "application/json")
+					w.WriteHeader(http.StatusUnauthorized)
+					w.Write([]byte(`{"status":"failed","error":"Invalid companion API key"}`))
+					return
+				}
+
+				// Key is valid! Pass verification and mark as device_signed = true
+				ctx = context.WithValue(ctx, "device_signed", true)
+				r = r.WithContext(ctx)
+				next.ServeHTTP(w, r)
+				return
+			}
+
 			keyID := r.Header.Get("X-Device-Key-ID")
 			assertionB64 := r.Header.Get("X-Device-Assertion")
 			challenge := r.Header.Get("X-Device-Challenge")

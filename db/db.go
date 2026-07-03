@@ -66,3 +66,59 @@ func GetDeviceKey(db DBQueryConnector, ctx context.Context, keyID string) (strin
 	`, keyID).Scan(&publicKeyPEM)
 	return publicKeyPEM, err
 }
+
+type CompanionDevice struct {
+	ID                 string
+	ProfileID          sql.NullString
+	DiscordID          sql.NullString
+	APIKey             sql.NullString
+	RegistrationSource string
+	IsOverride         bool
+	CreatedAt          string
+	UpdatedAt          string
+}
+
+func GetCompanionDeviceCount(db DBQueryConnector, ctx context.Context, profileID string) (int, error) {
+	var count int
+	err := db.QueryRowContext(ctx, `
+		SELECT COUNT(*) FROM "CompanionDevice" WHERE "profileId" = $1 AND "isOverride" = FALSE
+	`, profileID).Scan(&count)
+	return count, err
+}
+
+func GetCompanionDeviceCountByDiscordID(db DBQueryConnector, ctx context.Context, discordID string) (int, error) {
+	var count int
+	err := db.QueryRowContext(ctx, `
+		SELECT COUNT(*) FROM "CompanionDevice" WHERE "discordId" = $1 AND "isOverride" = FALSE
+	`, discordID).Scan(&count)
+	return count, err
+}
+
+func SaveCompanionDevice(db DBConnector, ctx context.Context, profileID, discordID, apiKey, source string, isOverride bool) error {
+	id := uuid.New().String()
+	
+	var pID, dID, aKey *string
+	if profileID != "" {
+		pID = &profileID
+	}
+	if discordID != "" {
+		dID = &discordID
+	}
+	if apiKey != "" {
+		aKey = &apiKey
+	}
+
+	_, err := db.ExecContext(ctx, `
+		INSERT INTO "CompanionDevice" ("id", "profileId", "discordId", "apiKey", "registrationSource", "isOverride", "createdAt", "updatedAt")
+		VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+	`, id, pID, dID, aKey, source, isOverride)
+	return err
+}
+
+func ValidateCompanionAPIKey(db DBQueryConnector, ctx context.Context, apiKey string) (bool, error) {
+	var exists bool
+	err := db.QueryRowContext(ctx, `
+		SELECT EXISTS(SELECT 1 FROM "CompanionDevice" WHERE "apiKey" = $1)
+	`, apiKey).Scan(&exists)
+	return exists, err
+}

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"dev.imaoreo/NativeServer/db"
+	"dev.imaoreo/NativeServer/discord"
 	"dev.imaoreo/NativeServer/routes"
 	"dev.imaoreo/NativeServer/routes/cache"
 	"dev.imaoreo/NativeServer/routes/challenge"
@@ -113,6 +114,30 @@ func main() {
 		log.Fatalf("Failed to initialize App Attest: %v", err)
 	}
 	log.Println("Apple App Attest attestor initialized.")
+
+	// Discord Bot initialization
+	discordToken := os.Getenv("DISCORD_BOT_TOKEN")
+	discordGuildID := os.Getenv("DISCORD_GUILD_ID")
+	discordReviewChannelID := os.Getenv("DISCORD_REVIEW_CHANNEL_ID")
+
+	if discordToken != "" {
+		if discordReviewChannelID == "" {
+			log.Println("DISCORD_REVIEW_CHANNEL_ID is required to start Discord Bot")
+		} else {
+			bot, err := discord.NewBot(discordToken, discordGuildID, discordReviewChannelID, dbConn)
+			if err != nil {
+				log.Printf("Failed to create Discord bot: %v", err)
+			} else {
+				if err := bot.Start(); err != nil {
+					log.Printf("Failed to start Discord bot: %v", err)
+				} else {
+					defer bot.Stop()
+				}
+			}
+		}
+	} else {
+		log.Println("DISCORD_BOT_TOKEN not provided, skipping Discord Bot startup")
+	}
 
 	// HTTP Router
 	r := chi.NewRouter()

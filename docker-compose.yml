@@ -7,6 +7,10 @@ services:
       - DATABASE_URL=postgresql://grind_user:secure_password123@postgres:5432/grind_db?sslmode=disable
       - REDIS_URL=redis://redis:6379
       - PORT=3000
+      - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN}
+      - DISCORD_GUILD_ID=${DISCORD_GUILD_ID}
+      - DISCORD_REVIEW_CHANNEL_ID=${DISCORD_REVIEW_CHANNEL_ID}
+      - ALLOW_UNSUPPORTED_DEVICES=${ALLOW_UNSUPPORTED_DEVICES}
     volumes:
       - /srv/grind/images:/usr/src/app/public/cache
     depends_on:

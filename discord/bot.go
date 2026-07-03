@@ -46,8 +46,8 @@ func (b *Bot) Start() error {
 	log.Println("Discord Bot is now running...")
 
 	cmd := &discordgo.ApplicationCommand{
-		Name:        "apply-mac-key",
-		Description: "Apply for a manual Mac-only companion API key",
+		Name:        "apply-api-key",
+		Description: "Apply for a API Key",
 	}
 
 	_, err = b.Session.ApplicationCommandCreate(b.Session.State.User.ID, b.GuildID, cmd)
@@ -55,7 +55,7 @@ func (b *Bot) Start() error {
 		return fmt.Errorf("error creating slash command: %w", err)
 	}
 
-	log.Println("Slash command /apply-mac-key registered successfully.")
+	log.Println("Slash command /apply-api-key registered successfully.")
 	return nil
 }
 
@@ -76,18 +76,18 @@ func (b *Bot) handleInteraction(s *discordgo.Session, i *discordgo.InteractionCr
 
 func (b *Bot) handleSlashCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	data := i.ApplicationCommandData()
-	if data.Name == "apply-mac-key" {
+	if data.Name == "apply-api-key" {
 		modal := discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseModal,
 			Data: &discordgo.InteractionResponseData{
-				CustomID: "apply_mac_modal",
-				Title:    "Mac-Only Key Application",
+				CustomID: "apply_api_modal",
+				Title:    "API Key Application",
 				Components: []discordgo.MessageComponent{
 					discordgo.ActionsRow{
 						Components: []discordgo.MessageComponent{
 							discordgo.TextInput{
 								CustomID:    "reason_input",
-								Label:       "Why do you need Mac-only access?",
+								Label:       "Why do you need API access?",
 								Style:       discordgo.TextInputParagraph,
 								Required:    true,
 								Placeholder: "Please explain here...",
@@ -107,7 +107,7 @@ func (b *Bot) handleSlashCommand(s *discordgo.Session, i *discordgo.InteractionC
 
 func (b *Bot) handleModalSubmit(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	data := i.ModalSubmitData()
-	if data.CustomID == "apply_mac_modal" {
+	if data.CustomID == "apply_api_modal" {
 		reason := ""
 		for _, row := range data.Components {
 			if actionRow, ok := row.(*discordgo.ActionsRow); ok {
@@ -134,9 +134,9 @@ func (b *Bot) handleModalSubmit(s *discordgo.Session, i *discordgo.InteractionCr
 		}
 
 		embed := &discordgo.MessageEmbed{
-			Title:       "Mac-Only Key Application",
+			Title:       "API Key Application",
 			Color:       0x3498db, // Blue
-			Description: "A user has applied for a manual Mac-only companion API key.",
+			Description: "A user has applied for a manual API key.",
 			Fields: []*discordgo.MessageEmbedField{
 				{
 					Name:   "User",
@@ -266,7 +266,7 @@ func (b *Bot) handleButtonInteraction(s *discordgo.Session, i *discordgo.Interac
 		if err != nil {
 			log.Printf("Error creating DM channel to user %s: %v", discordID, err)
 		} else {
-			dmMsg := fmt.Sprintf("Hello! Your manual Mac-only companion API key application has been **APPROVED**.\n\nHere is your unique API Key:\n```\n%s\n```\n*Please copy this key into your Mac app to link it. This key consumes 1 of your 4 companion device slots.*", apiKey)
+			dmMsg := fmt.Sprintf("Hello! Your manual API key application has been **APPROVED**.\n\nHere is your unique API Key:\n```\n%s\n```\n*Please copy this key into your app to link it. This key consumes 1 of your 4 companion device slots.*", apiKey)
 			_, err = s.ChannelMessageSend(dmChannel.ID, dmMsg)
 			if err != nil {
 				log.Printf("Error sending DM to user %s: %v", discordID, err)
@@ -320,7 +320,7 @@ func (b *Bot) handleButtonInteraction(s *discordgo.Session, i *discordgo.Interac
 		if err != nil {
 			log.Printf("Error creating DM channel: %v", err)
 		} else {
-			dmMsg := fmt.Sprintf("Hello! Your manual Mac-only companion API key application has been **APPROVED** (Override Edition).\n\nHere is your unique API Key:\n```\n%s\n```\n*Please copy this key into your Mac app to link it. This key bypasses your companion limit.*", apiKey)
+			dmMsg := fmt.Sprintf("Hello! Your manual API key application has been **APPROVED** (Override Edition).\n\nHere is your unique API Key:\n```\n%s\n```\n*Please copy this key into your app to link it. This key bypasses your companion limit.*", apiKey)
 			_, _ = s.ChannelMessageSend(dmChannel.ID, dmMsg)
 		}
 
@@ -358,7 +358,7 @@ func (b *Bot) handleButtonInteraction(s *discordgo.Session, i *discordgo.Interac
 		if err != nil {
 			log.Printf("Error creating DM channel to user %s: %v", discordID, err)
 		} else {
-			dmMsg := "Hello. Your manual Mac-only companion API key application has been reviewed and rejected by the admin team."
+			dmMsg := "Hello. Your API key application has been reviewed and rejected by the admin team."
 			_, err = s.ChannelMessageSend(dmChannel.ID, dmMsg)
 			if err != nil {
 				log.Printf("Error sending DM to user %s: %v", discordID, err)

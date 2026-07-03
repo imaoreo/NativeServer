@@ -1,4 +1,4 @@
-# Database & Cache Guide (Go & Goose Edition)
+# Database & Cache Guide
 
 This guide explains how to work with the PostgreSQL database and Redis cache in the Go server, which uses **Goose** for version-tracked database migrations.
 
@@ -11,8 +11,8 @@ We use [pressly/goose/v3](https://github.com/pressly/goose) to run database migr
 On server startup, the server automatically reads the embedded migrations, creates a tracking table called `goose_db_version` if it is missing, checks which migrations have already run, and applies any new migrations.
 
 ### Migration Files
-All migrations are stored under the [db/migrations/](file:///Users/jaybr/srv/projects/NativeServer/db/migrations) directory:
-- [00001_init.sql](file:///Users/jaybr/srv/projects/NativeServer/db/migrations/00001_init.sql): Initial schema creation (`ProfileImage` and `DeviceKey` tables).
+All migrations are stored under the [db/migrations/](db/migrations/) directory:
+- [00001_init.sql](db/migrations/00001_init.sqll): Initial schema creation (`ProfileImage` and `DeviceKey` tables).
 
 ---
 
@@ -20,7 +20,7 @@ All migrations are stored under the [db/migrations/](file:///Users/jaybr/srv/pro
 
 If you need to make schema changes (e.g., adding a table, adding a column, or reverting a change):
 
-1. **Create a new migration file** inside the [db/migrations/](file:///Users/jaybr/srv/projects/NativeServer/db/migrations) directory using a sequential numbering prefix:
+1. **Create a new migration file** inside the [db/migrations/](db/migrations/) directory using a sequential numbering prefix:
    - For example: `db/migrations/00002_add_user_table.sql`.
 2. **Define the UP and DOWN blocks** in the SQL file using Goose annotation headers:
    ```sql
@@ -46,7 +46,7 @@ If you need to make schema changes (e.g., adding a table, adding a column, or re
 We use the official Go Redis client (`github.com/redis/go-redis/v9`).
 
 ### Configuration
-The Redis client is instantiated in [main.go](file:///Users/jaybr/srv/projects/NativeServer/main.go) using the `REDIS_URL` environment variable, falling back to `redis://localhost:6379` if unset:
+The Redis client is instantiated in [main.go](/main.go) using the `REDIS_URL` environment variable, falling back to `redis://localhost:6379` if unset:
 ```go
 redisOpt, err := redis.ParseURL(redisURL)
 rdb := redis.NewClient(redisOpt)

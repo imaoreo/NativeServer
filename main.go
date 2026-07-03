@@ -52,7 +52,7 @@ func initEnv() {
 
 	appleTeamID = os.Getenv("APPLE_TEAM_ID")
 	if appleTeamID == "" {
-		appleTeamID = "TEAM123456"
+		appleTeamID = "LQCQTAV3UW"
 	}
 
 	appleBundleID = os.Getenv("APPLE_BUNDLE_ID")

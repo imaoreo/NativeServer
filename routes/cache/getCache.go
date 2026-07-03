@@ -25,13 +25,22 @@ func MakeGetCacheHandler(cacheDir string) http.HandlerFunc {
 			return
 		}
 
-		if !strings.HasPrefix(absPath, absCacheDir) {
+		rel, err := filepath.Rel(absCacheDir, absPath)
+		if err != nil || strings.HasPrefix(rel, "..") {
 			http.Error(w, "Forbidden", http.StatusForbidden)
 			return
 		}
 
 		info, err := os.Stat(absPath)
-		if os.IsNotExist(err) || info.IsDir() {
+		if err != nil {
+			if os.IsNotExist(err) {
+				http.Error(w, "Image not found", http.StatusNotFound)
+			} else {
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			}
+			return
+		}
+		if info.IsDir() {
 			http.Error(w, "Image not found", http.StatusNotFound)
 			return
 		}

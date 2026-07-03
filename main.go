@@ -16,6 +16,7 @@ import (
 	"dev.imaoreo/NativeServer/routes/cache"
 	"dev.imaoreo/NativeServer/routes/challenge"
 	"dev.imaoreo/NativeServer/routes/health"
+	"dev.imaoreo/NativeServer/routes/websocket"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -148,9 +149,13 @@ func main() {
 	r.Use(middleware.Recoverer)
 	r.Use(customRecoverer)
 
+	wsHub := websocket.NewHub()
+	go wsHub.Run()
+
 	// Routes
 	r.Get("/health", health.GetHealthHandler)
 	r.Get("/public/cache/*", cache.MakeGetCacheHandler(cacheDir))
+	r.Get("/ws", websocket.MakeWebsocketHandler(wsHub))
 
 	r.Get("/api/v1/challenge", challenge.MakeGetChallengeHandler(rdb))
 	r.Post("/api/v1/challenge", challenge.MakePostChallengeHandler(rdb, dbConn, attestor, appleTeamID, appleBundleID))

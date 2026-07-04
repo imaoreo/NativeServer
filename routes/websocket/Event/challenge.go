@@ -54,6 +54,9 @@ func HandleVerifyAttestation(
 		return
 	}
 
+	log.Printf("[DEBUG] HandleVerifyAttestation payload: KeyID len=%d, Attestation len=%d, Challenge len=%d",
+		len(payload.KeyID), len(payload.Attestation), len(payload.Challenge))
+
 	// 1. Verify challenge exists in Redis
 	challengeKey := "attest_challenge:" + payload.Challenge
 	challengeExists, err := rdb.Get(ctx, challengeKey).Result()
@@ -71,6 +74,8 @@ func HandleVerifyAttestation(
 		c.SendError("attestation_verified", "Invalid attestation encoding")
 		return
 	}
+	
+	log.Printf("[DEBUG] HandleVerifyAttestation: decoded attestation bytes len=%d", len(attestationBytes))
 
 	// 3. Verify App Attest Attestation
 	challengeHash := sha256.Sum256([]byte(payload.Challenge))

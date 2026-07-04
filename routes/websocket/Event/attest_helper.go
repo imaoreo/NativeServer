@@ -9,6 +9,7 @@ import (
 	"encoding/base64"
 	"encoding/pem"
 	"fmt"
+	"log"
 
 	"dev.imaoreo/NativeServer/db"
 	"github.com/redis/go-redis/v9"

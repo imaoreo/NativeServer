@@ -28,6 +28,7 @@ func VerifyAssertionSignature(
 	challengeKey := "attest_challenge:" + challenge
 	challengeExists, err := rdb.Get(ctx, challengeKey).Result()
 	if err == redis.Nil || challengeExists == "" {
+		log.Printf("[ERROR] VerifyAssertionSignature challenge not found: %s", challenge)
 		return fmt.Errorf("invalid or expired challenge")
 	}
 	rdb.Del(ctx, challengeKey)
@@ -35,6 +36,7 @@ func VerifyAssertionSignature(
 	// 2. Fetch public key from DB
 	publicKeyPEM, err := db.GetDeviceKey(dbQueryConn, ctx, keyID)
 	if err != nil {
+		log.Printf("[ERROR] VerifyAssertionSignature keyID %s not registered in DB: %v", keyID, err)
 		return fmt.Errorf("device key not registered")
 	}
 

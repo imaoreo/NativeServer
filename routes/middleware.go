@@ -120,7 +120,16 @@ func VerifyAssertionMiddleware(
 				r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 			}
 
-			clientData := append(bodyBytes, []byte(challenge)...)
+			scheme := "https"
+			if r.TLS == nil {
+				scheme = "http"
+			}
+			fullURL := fmt.Sprintf("%s://%s%s", scheme, r.Host, r.URL.RequestURI())
+
+			var clientData []byte
+			clientData = append(clientData, bodyBytes...)
+			clientData = append(clientData, []byte(fullURL)...)
+			clientData = append(clientData, []byte(challenge)...)
 			clientDataHash := sha256.Sum256(clientData)
 
 			assertionBytes, err := base64.StdEncoding.DecodeString(assertionB64)

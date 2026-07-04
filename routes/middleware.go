@@ -57,6 +57,7 @@ func VerifyAssertionMiddleware(
 
 				// Key is valid! Pass verification and mark as device_signed = true
 				ctx = context.WithValue(ctx, "device_signed", true)
+				ctx = context.WithValue(ctx, "is_companion_key", true)
 				r = r.WithContext(ctx)
 				next.ServeHTTP(w, r)
 				return

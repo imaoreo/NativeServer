@@ -167,7 +167,8 @@ func (c *Client) readPump(
 		Event.Handle(c, incoming.Event, incoming.Payload, rdb, dbConn, dbQueryConn, attestor, appleTeamID, appleBundleID)
 		
 		elapsed := time.Since(startTime)
-		log.Printf("[TIMING] Event: %s | Server Process Time: %v", incoming.Event, elapsed)
+		log.Printf("[TIMING] Event: %s | Server Process Time: %v | Client Auth State: Authed=%v, Type=%s, KeyID=%s",
+			incoming.Event, elapsed, c.IsAuthenticated(), c.GetAuthType(), c.GetKeyID())
 	}
 }
 

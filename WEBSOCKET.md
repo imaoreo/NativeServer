@@ -73,14 +73,14 @@ Submits Apple App Attest attestation data to register a new primary device key.
 * **Permission Required**: `Unauthenticated`
 * **Request Payload**:
   * `keyId` (string, required): The base64-encoded or hex Key ID of the App Attest key.
-  * `attestation` (string, required): The base64-encoded CBOR attestation object returned by Apple.
+  * `assertion` (string, required): The base64-encoded CBOR attestation object returned by Apple.
   * `challenge` (string, required): The active challenge string.
   ```json
   {
     "event": "verify_attestation",
     "payload": {
       "keyId": "base64_encoded_key_id",
-      "attestation": "base64_encoded_attestation_cbor",
+      "assertion": "base64_encoded_attestation_cbor",
       "challenge": "8b5f39c2-75d1-4db8-b590-b98a1a9e3a6c"
     }
   }

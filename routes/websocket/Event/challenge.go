@@ -45,7 +45,7 @@ func HandleVerifyAttestation(
 ) {
 	var payload struct {
 		KeyID       string `json:"keyId"`
-		Attestation string `json:"attestation"`
+		Attestation string `json:"assertion"`
 		Challenge   string `json:"challenge"`
 	}
 	if err := json.Unmarshal(rawPayload, &payload); err != nil {
@@ -54,7 +54,7 @@ func HandleVerifyAttestation(
 		return
 	}
 
-	log.Printf("[DEBUG] HandleVerifyAttestation payload: KeyID len=%d, Attestation len=%d, Challenge len=%d",
+	log.Printf("[DEBUG] HandleVerifyAttestation payload: KeyID len=%d, Assertion len=%d, Challenge len=%d",
 		len(payload.KeyID), len(payload.Attestation), len(payload.Challenge))
 
 	// 1. Verify challenge exists in Redis

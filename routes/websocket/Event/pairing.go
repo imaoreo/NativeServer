@@ -11,6 +11,41 @@ import (
 	"github.com/splitsecure/go-app-attest/appattest"
 )
 
+func validatePrimaryDevice(c Client) bool {
+	return c.IsAuthenticated() && c.GetAuthType() == "device_checked"
+}
+
+func verifyAssertionIfPresent(
+	ctx context.Context,
+	rdb redis.Cmdable,
+	dbQueryConn db.DBQueryConnector,
+	attestor appattest.Attestor,
+	appleTeamID, appleBundleID string,
+	keyID, assertion, challenge string,
+) error {
+	if assertion != "" && challenge != "" && keyID != "" {
+		return VerifyAssertionSignature(ctx, rdb, dbQueryConn, attestor, appleTeamID, appleBundleID, keyID, assertion, challenge)
+	}
+	return nil
+}
+
+func createCompanionAPIKey(
+	ctx context.Context,
+	dbConn db.DBConnector,
+	primaryKeyID string,
+) (string, error) {
+	apiKey, err := GenerateCompanionAPIKey()
+	if err != nil {
+		return "", err
+	}
+
+	err = db.SaveCompanionDevice(dbConn, ctx, primaryKeyID, "", apiKey, "qr_code", false)
+	if err != nil {
+		return "", err
+	}
+	return apiKey, nil
+}
+
 // HandleInitiatePairing generates an 8-digit SessionID and registers the pending pairing session.
 func HandleInitiatePairing(c Client, rawPayload json.RawMessage, ctx context.Context) {
 	var payload struct {
@@ -64,19 +99,14 @@ func HandleAuthorizeCompanion(
 		return
 	}
 
-	// Verify primary device is authenticated
-	if !c.IsAuthenticated() || c.GetAuthType() != "device_checked" {
+	if !validatePrimaryDevice(c) {
 		c.SendError("companion_authorized", "Unauthorized: Only device-checked primary devices can authorize companion devices")
 		return
 	}
 
-	// Verify AppAttest signature if provided
-	if payload.Assertion != "" && payload.Challenge != "" && payload.KeyID != "" {
-		err := VerifyAssertionSignature(ctx, rdb, dbQueryConn, attestor, appleTeamID, appleBundleID, payload.KeyID, payload.Assertion, payload.Challenge)
-		if err != nil {
-			c.SendError("companion_authorized", "Invalid AppAttest signature: "+err.Error())
-			return
-		}
+	if err := verifyAssertionIfPresent(ctx, rdb, dbQueryConn, attestor, appleTeamID, appleBundleID, payload.KeyID, payload.Assertion, payload.Challenge); err != nil {
+		c.SendError("companion_authorized", "Invalid AppAttest signature: "+err.Error())
+		return
 	}
 
 	session, exists := GetSession(payload.SessionID)
@@ -85,7 +115,6 @@ func HandleAuthorizeCompanion(
 		return
 	}
 
-	// If the client wants to be logged in as well
 	if session.WantLogin {
 		// Send prompt back to the primary device client so they can display the Yes/No dialog
 		c.SendSuccess("authorize_prompt", map[string]interface{}{
@@ -95,17 +124,9 @@ func HandleAuthorizeCompanion(
 		return
 	}
 
-	// If client does NOT want login: complete pairing (API Key only) immediately
-	apiKey, err := GenerateCompanionAPIKey()
+	apiKey, err := createCompanionAPIKey(ctx, dbConn, c.GetKeyID())
 	if err != nil {
-		c.SendError("companion_authorized", "Failed to generate API Key")
-		return
-	}
-
-	// Associate companion with the primary device's App Attest key identifier
-	err = db.SaveCompanionDevice(dbConn, ctx, c.GetKeyID(), "", apiKey, "qr_code", false)
-	if err != nil {
-		errMsg := "Database error saving companion device"
+		errMsg := "Failed to create companion device"
 		if strings.Contains(err.Error(), "maximum of 4 companion devices") || strings.Contains(err.Error(), "max_companion_devices") {
 			errMsg = "Maximum companion devices (4) reached for this primary device"
 		}
@@ -113,7 +134,7 @@ func HandleAuthorizeCompanion(
 		return
 	}
 
-	// Send only pairing credentials to U
+	// Send only pairing credentials to companion
 	authMsg := WSMessage{
 		Type:   "authorized",
 		APIKey: apiKey,
@@ -126,7 +147,7 @@ func HandleAuthorizeCompanion(
 	c.SendSuccess("companion_authorized", map[string]string{"status": "success", "apiKey": apiKey})
 }
 
-// HandleConfirmAuthorization handles D's Yes/No confirmation.
+// HandleConfirmAuthorization handles primary device's Yes/No confirmation.
 func HandleConfirmAuthorization(
 	c Client,
 	rawPayload json.RawMessage,
@@ -154,19 +175,14 @@ func HandleConfirmAuthorization(
 		return
 	}
 
-	// Verify primary device is authenticated
-	if !c.IsAuthenticated() || c.GetAuthType() != "device_checked" {
+	if !validatePrimaryDevice(c) {
 		c.SendError("companion_authorized", "Unauthorized: Only device-checked primary devices can confirm companion devices")
 		return
 	}
 
-	// Verify AppAttest signature if provided
-	if payload.Assertion != "" && payload.Challenge != "" && payload.KeyID != "" {
-		err := VerifyAssertionSignature(ctx, rdb, dbQueryConn, attestor, appleTeamID, appleBundleID, payload.KeyID, payload.Assertion, payload.Challenge)
-		if err != nil {
-			c.SendError("companion_authorized", "Invalid AppAttest signature: "+err.Error())
-			return
-		}
+	if err := verifyAssertionIfPresent(ctx, rdb, dbQueryConn, attestor, appleTeamID, appleBundleID, payload.KeyID, payload.Assertion, payload.Challenge); err != nil {
+		c.SendError("companion_authorized", "Invalid AppAttest signature: "+err.Error())
+		return
 	}
 
 	session, exists := GetSession(payload.SessionID)
@@ -175,16 +191,9 @@ func HandleConfirmAuthorization(
 		return
 	}
 
-	apiKey, err := GenerateCompanionAPIKey()
+	apiKey, err := createCompanionAPIKey(ctx, dbConn, c.GetKeyID())
 	if err != nil {
-		c.SendError("companion_authorized", "Failed to generate API Key")
-		return
-	}
-
-	// Associate companion with the primary device's App Attest key identifier
-	err = db.SaveCompanionDevice(dbConn, ctx, c.GetKeyID(), "", apiKey, "qr_code", false)
-	if err != nil {
-		errMsg := "Database error saving companion device"
+		errMsg := "Failed to create companion device"
 		if strings.Contains(err.Error(), "maximum of 4 companion devices") || strings.Contains(err.Error(), "max_companion_devices") {
 			errMsg = "Maximum companion devices (4) reached for this primary device"
 		}
@@ -193,9 +202,7 @@ func HandleConfirmAuthorization(
 	}
 
 	var authMsg WSMessage
-
 	if payload.Approved {
-		// Yes: send API key + all login session credentials
 		authMsg = WSMessage{
 			Type:            "authorized",
 			APIKey:          apiKey,
@@ -205,7 +212,6 @@ func HandleConfirmAuthorization(
 			ClientData:      payload.ClientData,
 		}
 	} else {
-		// No: send only pairing API key
 		authMsg = WSMessage{
 			Type:   "authorized",
 			APIKey: apiKey,

@@ -17,20 +17,20 @@ func HandleInitiatePairing(c Client, rawPayload json.RawMessage, ctx context.Con
 		WantLogin bool `json:"wantLogin"`
 	}
 	if err := json.Unmarshal(rawPayload, &payload); err != nil {
-		c.SendError("initiate_pairing", "Invalid payload format")
+		c.SendError("pairing_initiated", "Invalid payload format")
 		return
 	}
 
 	conn, ok := c.GetConn().(*websocket.Conn)
 	if !ok {
-		c.SendError("initiate_pairing", "Internal connection error")
+		c.SendError("pairing_initiated", "Internal connection error")
 		return
 	}
 
 	// Generate 8-digit SessionID code on the backend
 	sessionID, err := Generate8DigitCode()
 	if err != nil {
-		c.SendError("initiate_pairing", "Failed to generate pairing code")
+		c.SendError("pairing_initiated", "Failed to generate pairing code")
 		return
 	}
 
@@ -60,13 +60,13 @@ func HandleAuthorizeCompanion(
 		Challenge string `json:"challenge,omitempty"`
 	}
 	if err := json.Unmarshal(rawPayload, &payload); err != nil {
-		c.SendError("authorize_companion", "Invalid payload format")
+		c.SendError("companion_authorized", "Invalid payload format")
 		return
 	}
 
 	// Verify primary device is authenticated
 	if !c.IsAuthenticated() || c.GetAuthType() != "device_checked" {
-		c.SendError("authorize_companion", "Unauthorized: Only device-checked primary devices can authorize companion devices")
+		c.SendError("companion_authorized", "Unauthorized: Only device-checked primary devices can authorize companion devices")
 		return
 	}
 
@@ -74,14 +74,14 @@ func HandleAuthorizeCompanion(
 	if payload.Assertion != "" && payload.Challenge != "" && payload.KeyID != "" {
 		err := VerifyAssertionSignature(ctx, rdb, dbQueryConn, attestor, appleTeamID, appleBundleID, payload.KeyID, payload.Assertion, payload.Challenge)
 		if err != nil {
-			c.SendError("authorize_companion", "Invalid AppAttest signature: "+err.Error())
+			c.SendError("companion_authorized", "Invalid AppAttest signature: "+err.Error())
 			return
 		}
 	}
 
 	session, exists := GetSession(payload.SessionID)
 	if !exists {
-		c.SendError("authorize_companion", "Active pairing session not found")
+		c.SendError("companion_authorized", "Active pairing session not found")
 		return
 	}
 
@@ -98,7 +98,7 @@ func HandleAuthorizeCompanion(
 	// If client does NOT want login: complete pairing (API Key only) immediately
 	apiKey, err := GenerateCompanionAPIKey()
 	if err != nil {
-		c.SendError("authorize_companion", "Failed to generate API Key")
+		c.SendError("companion_authorized", "Failed to generate API Key")
 		return
 	}
 
@@ -109,7 +109,7 @@ func HandleAuthorizeCompanion(
 		if strings.Contains(err.Error(), "maximum of 4 companion devices") || strings.Contains(err.Error(), "max_companion_devices") {
 			errMsg = "Maximum companion devices (4) reached for this primary device"
 		}
-		c.SendError("authorize_companion", errMsg)
+		c.SendError("companion_authorized", errMsg)
 		return
 	}
 
@@ -150,13 +150,13 @@ func HandleConfirmAuthorization(
 		Challenge string `json:"challenge,omitempty"`
 	}
 	if err := json.Unmarshal(rawPayload, &payload); err != nil {
-		c.SendError("confirm_authorization", "Invalid payload format")
+		c.SendError("companion_authorized", "Invalid payload format")
 		return
 	}
 
 	// Verify primary device is authenticated
 	if !c.IsAuthenticated() || c.GetAuthType() != "device_checked" {
-		c.SendError("confirm_authorization", "Unauthorized: Only device-checked primary devices can confirm companion devices")
+		c.SendError("companion_authorized", "Unauthorized: Only device-checked primary devices can confirm companion devices")
 		return
 	}
 
@@ -164,20 +164,20 @@ func HandleConfirmAuthorization(
 	if payload.Assertion != "" && payload.Challenge != "" && payload.KeyID != "" {
 		err := VerifyAssertionSignature(ctx, rdb, dbQueryConn, attestor, appleTeamID, appleBundleID, payload.KeyID, payload.Assertion, payload.Challenge)
 		if err != nil {
-			c.SendError("confirm_authorization", "Invalid AppAttest signature: "+err.Error())
+			c.SendError("companion_authorized", "Invalid AppAttest signature: "+err.Error())
 			return
 		}
 	}
 
 	session, exists := GetSession(payload.SessionID)
 	if !exists {
-		c.SendError("confirm_authorization", "Active pairing session not found")
+		c.SendError("companion_authorized", "Active pairing session not found")
 		return
 	}
 
 	apiKey, err := GenerateCompanionAPIKey()
 	if err != nil {
-		c.SendError("confirm_authorization", "Failed to generate API Key")
+		c.SendError("companion_authorized", "Failed to generate API Key")
 		return
 	}
 
@@ -188,7 +188,7 @@ func HandleConfirmAuthorization(
 		if strings.Contains(err.Error(), "maximum of 4 companion devices") || strings.Contains(err.Error(), "max_companion_devices") {
 			errMsg = "Maximum companion devices (4) reached for this primary device"
 		}
-		c.SendError("confirm_authorization", errMsg)
+		c.SendError("companion_authorized", errMsg)
 		return
 	}
 

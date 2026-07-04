@@ -48,7 +48,7 @@ func HandleVerifyAttestation(
 		Challenge   string `json:"challenge"`
 	}
 	if err := json.Unmarshal(rawPayload, &payload); err != nil {
-		c.SendError("verify_attestation", "Invalid payload format")
+		c.SendError("attestation_verified", "Invalid payload format")
 		return
 	}
 
@@ -56,7 +56,7 @@ func HandleVerifyAttestation(
 	challengeKey := "attest_challenge:" + payload.Challenge
 	challengeExists, err := rdb.Get(ctx, challengeKey).Result()
 	if err == redis.Nil || challengeExists == "" {
-		c.SendError("verify_attestation", "Invalid or expired challenge")
+		c.SendError("attestation_verified", "Invalid or expired challenge")
 		return
 	}
 	rdb.Del(ctx, challengeKey)
@@ -64,7 +64,7 @@ func HandleVerifyAttestation(
 	// 2. Decode Attestation from Base64
 	attestationBytes, err := base64.StdEncoding.DecodeString(payload.Attestation)
 	if err != nil {
-		c.SendError("verify_attestation", "Invalid attestation encoding")
+		c.SendError("attestation_verified", "Invalid attestation encoding")
 		return
 	}
 
@@ -77,7 +77,7 @@ func HandleVerifyAttestation(
 
 	res, err := attestor.VerifyAttestation(attestorInput)
 	if err != nil {
-		c.SendError("verify_attestation", fmt.Sprintf("Attestation verification failed: %v", err))
+		c.SendError("attestation_verified", fmt.Sprintf("Attestation verification failed: %v", err))
 		return
 	}
 
@@ -85,7 +85,7 @@ func HandleVerifyAttestation(
 	appID := fmt.Sprintf("%s.%s", appleTeamID, appleBundleID)
 	expectedBundleDigest := sha256.Sum256([]byte(appID))
 	if !bytes.Equal(res.BundleDigest, expectedBundleDigest[:]) {
-		c.SendError("verify_attestation", "Bundle digest mismatch")
+		c.SendError("attestation_verified", "Bundle digest mismatch")
 		return
 	}
 
@@ -102,7 +102,7 @@ func HandleVerifyAttestation(
 	}
 
 	if !bytes.Equal(res.KeyID, clientKeyIDBytes) {
-		c.SendError("verify_attestation", "Key ID mismatch")
+		c.SendError("attestation_verified", "Key ID mismatch")
 		return
 	}
 
@@ -110,7 +110,7 @@ func HandleVerifyAttestation(
 	pubKey := res.AttestedPubkey()
 	derBytes, err := x509.MarshalPKIXPublicKey(pubKey)
 	if err != nil {
-		c.SendError("verify_attestation", "Failed to marshal public key")
+		c.SendError("attestation_verified", "Failed to marshal public key")
 		return
 	}
 	pemBlock := &pem.Block{Type: "PUBLIC KEY", Bytes: derBytes}
@@ -118,7 +118,7 @@ func HandleVerifyAttestation(
 
 	err = db.SaveDeviceKey(dbConn, ctx, payload.KeyID, publicKeyPEM)
 	if err != nil {
-		c.SendError("verify_attestation", "Database error saving device key")
+		c.SendError("attestation_verified", "Database error saving device key")
 		return
 	}
 
@@ -141,13 +141,13 @@ func HandleAssertIdentity(
 		Challenge string `json:"challenge"`
 	}
 	if err := json.Unmarshal(rawPayload, &payload); err != nil {
-		c.SendError("assert_identity", "Invalid payload format")
+		c.SendError("identity_verified", "Invalid payload format")
 		return
 	}
 
 	err := VerifyAssertionSignature(ctx, rdb, dbQueryConn, nil, appleTeamID, appleBundleID, payload.KeyID, payload.Assertion, payload.Challenge)
 	if err != nil {
-		c.SendError("assert_identity", fmt.Sprintf("Assertion verification failed: %v", err))
+		c.SendError("identity_verified", fmt.Sprintf("Assertion verification failed: %v", err))
 		return
 	}
 

@@ -24,7 +24,6 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
-// Client represents a single websocket client connection.
 type Client struct {
 	Hub      *Hub
 	Conn     *websocket.Conn
@@ -33,8 +32,6 @@ type Client struct {
 	AuthType string // "device_checked", "companion_device", "manual_api_key"
 	KeyID    string
 }
-
-// Implementation of Event.Client interface methods for Client
 
 func (c *Client) SendError(event, message string) {
 	Send.Error(c.Conn, event, message)
@@ -85,7 +82,6 @@ func NewHub() *Hub {
 	}
 }
 
-// Run executes the hub's main event loop.
 func (h *Hub) Run() {
 	for {
 		select {
@@ -117,14 +113,12 @@ func (h *Hub) Run() {
 	}
 }
 
-// WSIncomingMessage represents a message sent from the client to the server.
 type WSIncomingMessage struct {
 	Event      string          `json:"event"`
 	Payload    json.RawMessage `json:"payload"`
 	ClientTime int64           `json:"clientTime"`
 }
 
-// readPump pumps messages from the websocket connection to the hub.
 func (c *Client) readPump(
 	rdb redis.Cmdable,
 	dbConn db.DBConnector,
@@ -172,7 +166,6 @@ func (c *Client) readPump(
 	}
 }
 
-// writePump pumps messages from the hub to the websocket connection.
 func (c *Client) writePump() {
 	defer func() {
 		c.Conn.Close()
@@ -204,7 +197,6 @@ func (c *Client) writePump() {
 	}
 }
 
-// MakeWebsocketHandler returns a http.HandlerFunc to handle websocket requests.
 func MakeWebsocketHandler(
 	hub *Hub,
 	rdb redis.Cmdable,

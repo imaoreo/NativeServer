@@ -48,6 +48,8 @@ func Handle(
 		HandleAuthorizeCompanion(c, payload, dbConn, rdb, dbQueryConn, attestor, appleTeamID, appleBundleID, ctx)
 	case "confirm_authorization":
 		HandleConfirmAuthorization(c, payload, dbConn, rdb, dbQueryConn, attestor, appleTeamID, appleBundleID, ctx)
+	case "get_auth_status":
+		HandleGetAuthStatus(c)
 	default:
 		c.SendError(event, "Unknown event")
 	}

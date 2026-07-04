@@ -26,3 +26,11 @@ func HandleAuth(c Client, rawPayload json.RawMessage, dbQueryConn db.DBQueryConn
 	c.Authenticate("companion_or_manual_api", "")
 	c.SendSuccess("authenticated", map[string]string{"status": "success"})
 }
+
+// HandleGetAuthStatus returns the current authentication status and type.
+func HandleGetAuthStatus(c Client) {
+	c.SendSuccess("auth_status", map[string]interface{}{
+		"isAuthed": c.IsAuthenticated(),
+		"authType": c.GetAuthType(),
+	})
+}

@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	"dev.imaoreo/NativeServer/db"
 	"dev.imaoreo/NativeServer/routes/websocket/Event"
@@ -118,8 +119,9 @@ func (h *Hub) Run() {
 
 // WSIncomingMessage represents a message sent from the client to the server.
 type WSIncomingMessage struct {
-	Event   string          `json:"event"`
-	Payload json.RawMessage `json:"payload"`
+	Event      string          `json:"event"`
+	Payload    json.RawMessage `json:"payload"`
+	ClientTime int64           `json:"clientTime"`
 }
 
 // readPump pumps messages from the websocket connection to the hub.
@@ -150,8 +152,22 @@ func (c *Client) readPump(
 			continue
 		}
 
+		startTime := time.Now()
 		log.Printf("Received WS event: %s", incoming.Event)
+		if incoming.ClientTime > 0 {
+			clientTime := time.UnixMilli(incoming.ClientTime)
+			log.Printf("[TIMING] Event: %s | Client Sent: %v | Server Received: %v | Transmission Time: %v",
+				incoming.Event,
+				clientTime.Format(time.RFC3339Nano),
+				startTime.Format(time.RFC3339Nano),
+				startTime.Sub(clientTime),
+			)
+		}
+		
 		Event.Handle(c, incoming.Event, incoming.Payload, rdb, dbConn, dbQueryConn, attestor, appleTeamID, appleBundleID)
+		
+		elapsed := time.Since(startTime)
+		log.Printf("[TIMING] Event: %s | Server Process Time: %v", incoming.Event, elapsed)
 	}
 }
 

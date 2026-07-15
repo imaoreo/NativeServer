@@ -1,0 +1,50 @@
+services:
+  api:
+    build: .
+    container_name: grind
+    restart: unless-stopped
+    environment:
+      - DATABASE_URL=postgresql://grind_user:secure_password123@postgres:5432/grind_db?sslmode=disable
+      - REDIS_URL=redis://redis:6379
+      - PORT=3000
+      - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN}
+    volumes:
+      - /srv/grind/images:/usr/src/app/public/cache
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - grind
+      - proxy
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: grind-postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=grind_user
+      - POSTGRES_PASSWORD=secure_password123
+      - POSTGRES_DB=grind_db
+    volumes:
+      - /srv/grind/postgres:/var/lib/postgresql/data
+    networks:
+      - grind
+
+  redis:
+    image: redis:7-alpine
+    container_name: grind-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - /srv/grind/redis:/data
+    networks:
+      - grind
+
+networks:
+  grind:
+    driver: bridge
+  proxy:
+    external: true

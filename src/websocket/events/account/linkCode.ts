@@ -117,5 +117,5 @@ export async function handleLinkDeviceViaCode(
     accountId: accountId,
   });
 
-  ws.sendSuccess('device_added', 'Device added successfully', {});
+  ws.sendSuccess('device_linked', 'Device linked successfully');
 }

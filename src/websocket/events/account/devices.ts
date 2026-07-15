@@ -44,9 +44,9 @@ export async function handleRemoveDevice(
 
   const connectedWs = Array.from(wss.clients).find((client: any) => client.deviceId === deviceId) as AuthenticatedWebSocket | undefined;
   if (connectedWs) {
-    connectedWs.sendError('device_removed', 'Your device has been removed from the account');
+    connectedWs.sendError('device_removed_device', 'Your device has been removed from the account');
     connectedWs.close();
   }
 
-  ws.sendSuccess('device_removed', 'Device removed successfully', { status: 'success' });
+  ws.sendSuccess('device_removed', 'Device removed successfully');
 }

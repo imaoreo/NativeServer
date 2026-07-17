@@ -54,7 +54,7 @@ server.on('upgrade', async (request, socket, head) => {
 
     authedWs.sendSuccess = (event: string, message: string, extraFields?: Record<string, unknown>) => {
       if (authedWs.readyState === authedWs.OPEN) {
-        const payload: any = { status: 'success', data: message };
+        const payload: any = { status: 'success', message: message };
         if (extraFields) {
           Object.assign(payload, extraFields);
         }
@@ -64,7 +64,7 @@ server.on('upgrade', async (request, socket, head) => {
 
     authedWs.sendError = (event: string, message: string) => {
       if (authedWs.readyState === authedWs.OPEN) {
-        authedWs.send(JSON.stringify({ event, payload: { status: 'failed', error: message } }));
+        authedWs.send(JSON.stringify({ event, payload: { status: 'failed', message: message } }));
       }
     };
 

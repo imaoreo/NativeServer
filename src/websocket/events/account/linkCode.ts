@@ -29,6 +29,38 @@ export async function handleGenerateLinkCode(ws: AuthenticatedWebSocket, redis: 
   ws.sendError('link_code_generated', 'Could not generate unique code. Try again.');
 }
 
+export async function handleLinkDeviceGetPublicKey(
+  ws: AuthenticatedWebSocket, payload: any, redis: Redis
+): Promise<void> {
+  if (!ws.isAuth || !ws.accountId) {
+    ws.sendError('link_device_public_key', 'Unauthorized');
+    return;
+  }
+
+  const { code } = payload || {};
+  if (typeof code !== 'string' || !/^\d{8}$/.test(code)) {
+    ws.sendError('link_device_public_key', 'Code must be an 8-digit number');
+    return;
+  }
+
+  const deviceId = await redis.get(`link_token:device:${code}`);
+  if (!deviceId) {
+    ws.sendError('link_device_public_key', 'Invalid or expired code');
+    return;
+  }
+
+  const device = await prisma.device.findUnique({
+    where: { id: deviceId },
+  });
+  
+  if (!device) {
+    ws.sendError('link_device_public_key', 'Device not found in database');
+    return;
+  }
+
+  ws.sendSuccess('link_device_public_key', 'Public key retrieved successfully', { publicKey: device.publicKey });
+}
+
 export async function handleLinkDeviceViaCode(
   ws: AuthenticatedWebSocket, payload: any, redis: Redis
 ): Promise<void> {
@@ -37,7 +69,7 @@ export async function handleLinkDeviceViaCode(
     return;
   }
 
-  const { code } = payload || {};
+  const { code, key } = payload || {};
   let devId: string | null = null;
 
   if (typeof code === 'string' && /^\d{8}$/.test(code)) {
@@ -115,6 +147,7 @@ export async function handleLinkDeviceViaCode(
 
   targetWs.sendSuccess('device_connected', 'Device linked successfully', {
     accountId: accountId,
+    key: key,
   });
 
   ws.sendSuccess('device_linked', 'Device linked successfully');

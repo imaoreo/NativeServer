@@ -12,7 +12,7 @@ export async function handleGenerateLinkCode(ws: AuthenticatedWebSocket, redis: 
   }
 
   const deviceId = ws.deviceId;
-  if (await checkRateLimit(redis, `rl:gen_code:${deviceId}`, 10, 3600)) {
+  if (await checkRateLimit(redis, `rl:gen_code:${deviceId}`, 3, 180)) {
     ws.sendError('link_code_generated', 'Too many requests');
     return;
   }

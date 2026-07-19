@@ -58,7 +58,7 @@ export async function handleLinkDeviceGetPublicKey(
     return;
   }
 
-  ws.sendSuccess('link_device_public_key', 'Public key retrieved successfully', { publicKey: device.publicKey });
+  ws.sendSuccess('link_device_public_key', 'Public key retrieved successfully', { publicKey: device.publicKey, code: code });
 }
 
 export async function handleLinkDeviceViaCode(

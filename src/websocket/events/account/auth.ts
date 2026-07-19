@@ -29,7 +29,7 @@ export async function handleAuthenticate(
     const ip = ws.ip || 'unknown';
     const baselineDelay = new Promise(r => setTimeout(r, 50 + Math.random() * 50));
 
-    if (await checkRateLimit(redis, `rl:set:${ip}`, 15, 3600)) {
+    if (await checkRateLimit(redis, `rl:set:${ip}`, 5, 60)) {
         await baselineDelay;
         ws.sendError('device_authenticated', 'Too many attempts');
         return;

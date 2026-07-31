@@ -10,6 +10,11 @@ import {
   handleLinkDeviceGetPublicKey
 } from './events/account.js';
 
+import {
+  handleSaveData,
+  handleGetData
+} from './events/storage.js';
+
 export async function routeWSEvent(
   event: string,
   payload: any,
@@ -44,6 +49,14 @@ export async function routeWSEvent(
 
     case 'remove_device':
       await handleRemoveDevice(authedWs, payload, wss);
+      break;
+
+    case 'save_data':
+      await handleSaveData(authedWs, payload, redis);
+      break;
+
+    case 'get_data':
+      await handleGetData(authedWs, payload, redis);
       break;
 
     case 'get_account_info':

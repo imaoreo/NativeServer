@@ -12,7 +12,9 @@ datasource db {
 model User {
   id        String   @id @default(uuid())
   discordId String?  @unique
+
   devices   Device[] @relation("UserOwnedDevices")
+  storageItems Storage[] @relation("UserStorage")
 }
 
 model Device {
@@ -29,6 +31,27 @@ model Device {
   addedBy   Device?  @relation("DeviceHierarchy", fields: [addedById], references: [id])
   children  Device[] @relation("DeviceHierarchy")
 
+  modifiedItems Storage[]         @relation("DeviceLastModified")
+
   @@index([userId])
   @@index([addedById])
+}
+
+model Storage {
+  id               String   @id @default(uuid())
+  location         String   
+  
+  encryptedPayload String   
+
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  userId           String
+  user             User     @relation("UserStorage", fields: [userId], references: [id], onDelete: Cascade)
+  
+  lastModifiedById String?
+  lastModifiedBy   Device?  @relation("DeviceLastModified", fields: [lastModifiedById], references: [id], onDelete: SetNull)
+  
+  @@unique([userId, location])
+  @@index([userId])
 }

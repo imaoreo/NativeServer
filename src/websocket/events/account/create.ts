@@ -1,5 +1,4 @@
 import { Redis } from 'ioredis';
-import crypto from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import { AuthenticatedWebSocket } from '../types.js';
 import { checkRateLimit } from '../helper.js';

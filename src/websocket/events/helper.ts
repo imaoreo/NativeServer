@@ -17,20 +17,16 @@ export async function checkRateLimit(
 }
 
 export function normalizePublicKey(keyStr: string): string {
-  console.debug(`[normalizePublicKey] Received key string of length: ${keyStr.length}`);
 
   if (keyStr.includes('-----BEGIN PUBLIC KEY-----')) {
-    console.debug('[normalizePublicKey] Key is already a PEM string. Returning as-is.');
     return keyStr;
   }
 
   if (keyStr.includes('publicKey')) {
-    console.debug('[normalizePublicKey] Detected "publicKey" in string, attempting JSON parse.');
     try {
       const parsed = JSON.parse(keyStr);
       if (parsed.publicKey) {
         keyStr = parsed.publicKey;
-        console.debug('[normalizePublicKey] Successfully extracted key from JSON.');
       }
     } catch (e) {
       console.warn('[normalizePublicKey] JSON parse failed, treating as raw string.', e);
@@ -39,7 +35,6 @@ export function normalizePublicKey(keyStr: string): string {
 
   const base64Part = keyStr.replace(/[\s"]+/g, '');
   const buf = Buffer.from(base64Part, 'base64');
-  console.debug(`[normalizePublicKey] Decoded Base64 buffer length: ${buf.length} bytes.`);
 
   if (buf.length !== 64 && buf.length !== 65 && buf.length !== 33) {
     const errMsg = `Invalid key size: Expected 64, 65, or 33 bytes, got ${buf.length}.`;
@@ -50,7 +45,6 @@ export function normalizePublicKey(keyStr: string): string {
   let sec1Buf = buf;
 
   if (buf.length === 64) {
-    console.debug('[normalizePublicKey] 64-byte raw key detected. Prepending 0x04 prefix.');
     sec1Buf = Buffer.concat([Buffer.from([0x04]), buf]);
   } else if (buf.length === 65) {
     if (buf[0] !== 0x04) {
@@ -58,17 +52,14 @@ export function normalizePublicKey(keyStr: string): string {
       console.error(`[normalizePublicKey] Error: ${errMsg}`);
       throw new Error(errMsg);
     }
-    console.debug('[normalizePublicKey] 65-byte uncompressed key validated.');
   } else if (buf.length === 33) {
     if (buf[0] !== 0x02 && buf[0] !== 0x03) {
       const errMsg = "Invalid 33-byte key: Must start with a 0x02 or 0x03 compressed prefix.";
       console.error(`[normalizePublicKey] Error: ${errMsg}`);
       throw new Error(errMsg);
     }
-    console.debug('[normalizePublicKey] 33-byte compressed key validated.');
   }
 
-  console.debug('[normalizePublicKey] Constructing SPKI DER wrapper for secp256r1.');
   const idEcPublicKey = Buffer.from('06072a8648ce3d0201', 'hex');
   const secp256r1 = Buffer.from('06082a8648ce3d030107', 'hex');
   
@@ -93,7 +84,6 @@ export function normalizePublicKey(keyStr: string): string {
   try {
     const keyObj = crypto.createPublicKey({ key: spki, format: 'der', type: 'spki' });
     const pemKey = keyObj.export({ type: 'spki', format: 'pem' }) as string;
-    console.info('[normalizePublicKey] Successfully normalized key to PEM format.');
     return pemKey;
   } catch (err) {
     console.error('[normalizePublicKey] Failed to create or export public key.', err);

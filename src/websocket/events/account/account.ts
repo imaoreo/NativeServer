@@ -154,7 +154,7 @@ export async function handleDeleteAccount(
 
         ws.isAuth = false;
         ws.accountId = undefined;
-        ws.sendSuccess('delete_account', 'Account deleted successfully', { accountId: device.userId });
+        ws.sendSuccess('delete_account', 'Account deleted successfully');
         return;
     } else if (deviceCount > 1) {
         ws.sendError('delete_account', 'Cannot delete account with multiple devices. Remove other devices first.');

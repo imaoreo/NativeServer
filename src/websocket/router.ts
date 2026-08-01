@@ -7,7 +7,8 @@ import {
   handleRemoveDevice,
   handleAuthenticate,
   handleCreateAccount,
-  handleLinkDeviceGetPublicKey
+  handleLinkDeviceGetPublicKey,
+  handleDeleteAccount
 } from './events/account.js';
 
 import {
@@ -41,6 +42,10 @@ export async function routeWSEvent(
 
     case 'create_account':
       await handleCreateAccount(authedWs, payload, redis);
+      break;
+
+    case 'delete_account':
+      await handleDeleteAccount(authedWs, payload, redis);
       break;
 
     case 'list_devices':

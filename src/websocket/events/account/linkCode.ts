@@ -145,6 +145,9 @@ export async function handleLinkDeviceViaCode(
     data: { userId: accountId },
   });
 
+  targetWs.accountId = accountId;
+  targetWs.isAuth = true;
+
   targetWs.sendSuccess('device_connected', 'Device linked successfully', {
     accountId: accountId,
     key: key,

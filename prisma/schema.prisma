@@ -17,6 +17,60 @@ model User {
   storageItems Storage[] @relation("UserStorage")
 }
 
+model GrindrProfile {
+  id                    String                 @id // Grindr profile ID
+  displayName           String?
+  age                   Int?
+  profileImageMediaHash String?
+  aboutMe               String?
+  onlineUntil           DateTime?
+  rawData               String                 // Stores the full raw JSON of the profile
+  lastSeen              DateTime               @default(now())
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+
+  history               GrindrProfileHistory[]
+  medias                GrindrProfileMedia[]
+  distances             GrindrProfileDistance[]
+}
+
+model GrindrProfileHistory {
+  id        String        @id @default(uuid())
+  profileId String
+  profile   GrindrProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  diffJson  String        // The JSON representation of changed fields (previous values)
+  createdAt DateTime      @default(now())
+
+  @@index([profileId])
+}
+
+model GrindrProfileDistance {
+  id        String        @id @default(uuid())
+  profileId String
+  profile   GrindrProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  distance  Float         // Distance in meters
+  geohash   String        // Geohash of the querying client
+  createdAt DateTime      @default(now())
+
+  @@index([profileId])
+}
+
+model GrindrProfileMedia {
+  mediaHash     String        @id
+  profileId     String
+  profile       GrindrProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  type          Int
+  state         Int
+  reason        String?
+  takenOnGrindr Boolean?
+  createdAt     DateTime?     // Grindr media creation date
+  firstSeen     DateTime      @default(now())
+  lastSeen      DateTime      @default(now())
+  hasImage      Boolean       @default(false)
+
+  @@index([profileId])
+}
+
 model Device {
   id        String   @id @default(uuid())
   name      String

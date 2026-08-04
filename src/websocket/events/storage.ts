@@ -2,6 +2,7 @@ import { Redis } from 'ioredis';
 import { AuthenticatedWebSocket } from './types.js';
 import { checkRateLimit } from './helper.js';
 import { prisma } from '../../db.js';
+import { connections } from '../index.js';
 
 export async function handleSaveData(
     ws: AuthenticatedWebSocket, payload: any, redis: Redis
@@ -47,7 +48,21 @@ export async function handleSaveData(
       },
     })
 
-    ws.sendSuccess('save_data', 'Data saved successfully', { accountId, location });
+    ws.sendSuccess('save_data', 'Data saved successfully', { accountId, location, encryptedPayload });
+
+    for (const [otherDeviceId, otherWs] of connections.entries()) {
+        if (otherDeviceId !== deviceId && otherWs.accountId === accountId && otherWs.readyState === otherWs.OPEN) {
+            otherWs.send(JSON.stringify({
+                event: 'save_data',
+                payload: {
+                    status: 'success',
+                    message: 'Data updated by another device',
+                    accountId,
+                    location
+                }
+            }));
+        }
+    }
 }
 
 export async function handleGetData(

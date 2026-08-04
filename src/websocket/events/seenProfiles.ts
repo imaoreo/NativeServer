@@ -176,3 +176,35 @@ export async function handleUploadMedia(
     ws.sendError('upload_media', 'Failed to save media');
   }
 }
+
+export async function handleGetProfileByImageHash(
+  ws: AuthenticatedWebSocket,
+  payload: any
+): Promise<void> {
+  const deviceId = ws.deviceId;
+  if (!deviceId) {
+    ws.sendError('get_profile_by_image', 'Device not authenticated');
+    return;
+  }
+
+  const { mediaHash } = payload || {};
+  if (typeof mediaHash !== 'string') {
+    ws.sendError('get_profile_by_image', 'Invalid mediaHash');
+    return;
+  }
+
+  try {
+    const media = await prisma.grindrProfileMedia.findUnique({
+      where: { mediaHash },
+      select: { profileId: true }
+    });
+
+    ws.sendSuccess('get_profile_by_image', 'Lookup complete', {
+      mediaHash,
+      profileId: media ? media.profileId : null
+    });
+  } catch (error) {
+    console.error(`Failed to lookup profile by media hash ${mediaHash}:`, error);
+    ws.sendError('get_profile_by_image', 'Failed to lookup profile by image hash');
+  }
+}

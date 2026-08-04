@@ -18,7 +18,8 @@ import {
 
 import {
   handleSyncSeenProfile,
-  handleUploadMedia
+  handleUploadMedia,
+  handleGetProfileByImageHash
 } from './events/seenProfiles.js';
 
 export async function routeWSEvent(
@@ -75,6 +76,10 @@ export async function routeWSEvent(
 
     case 'upload_media':
       await handleUploadMedia(authedWs, payload);
+      break;
+
+    case 'get_profile_by_image':
+      await handleGetProfileByImageHash(authedWs, payload);
       break;
 
     case 'get_account_info':

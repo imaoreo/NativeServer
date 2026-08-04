@@ -90,3 +90,40 @@ export function normalizePublicKey(keyStr: string): string {
     throw err;
   }
 }
+
+export function decodeJWT(token: string): any {
+  const parts = token.split('.');
+  if (parts.length !== 3) return null;
+  try {
+    const payload = Buffer.from(parts[1], 'base64url').toString('utf8');
+    return JSON.parse(payload);
+  } catch (e) {
+    return null;
+  }
+}
+
+export function generateReverseDiff(oldVal: any, newVal: any): string | null {
+  if (!oldVal || !newVal) return null;
+  const oldDict = typeof oldVal === 'string' ? JSON.parse(oldVal) : oldVal;
+  const newDict = typeof newVal === 'string' ? JSON.parse(newVal) : newVal;
+
+  const diffDict: Record<string, any> = {};
+  const keys = new Set([...Object.keys(oldDict), ...Object.keys(newDict)]);
+
+  for (const key of keys) {
+    if (key === 'dbCreatedAt') continue;
+
+    const ov = oldDict[key];
+    const nv = newDict[key];
+
+    const oldStr = JSON.stringify(ov);
+    const newStr = JSON.stringify(nv);
+
+    if (oldStr !== newStr) {
+      diffDict[key] = ov === undefined ? null : ov;
+    }
+  }
+
+  if (Object.keys(diffDict).length === 0) return null;
+  return JSON.stringify(diffDict);
+}

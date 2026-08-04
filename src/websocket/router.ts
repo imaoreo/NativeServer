@@ -16,6 +16,11 @@ import {
   handleGetData
 } from './events/storage.js';
 
+import {
+  handleSyncSeenProfile,
+  handleUploadMedia
+} from './events/seenProfiles.js';
+
 export async function routeWSEvent(
   event: string,
   payload: any,
@@ -62,6 +67,14 @@ export async function routeWSEvent(
 
     case 'get_data':
       await handleGetData(authedWs, payload, redis);
+      break;
+
+    case 'sync_seen_profile':
+      await handleSyncSeenProfile(authedWs, payload, redis);
+      break;
+
+    case 'upload_media':
+      await handleUploadMedia(authedWs, payload);
       break;
 
     case 'get_account_info':

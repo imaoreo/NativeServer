@@ -1,5 +1,7 @@
 import { Redis } from 'ioredis';
 import crypto from 'crypto';
+import fs from 'fs';
+import path from 'path';
 
 const LUA_RATE_LIMIT = `
   local count = redis.call('incr', KEYS[1])
@@ -111,7 +113,7 @@ export function generateReverseDiff(oldVal: any, newVal: any): string | null {
   const keys = new Set([...Object.keys(oldDict), ...Object.keys(newDict)]);
 
   for (const key of keys) {
-    if (key === 'dbCreatedAt') continue;
+    if (key === 'distance') continue;
 
     const ov = oldDict[key];
     const nv = newDict[key];
@@ -126,4 +128,21 @@ export function generateReverseDiff(oldVal: any, newVal: any): string | null {
 
   if (Object.keys(diffDict).length === 0) return null;
   return JSON.stringify(diffDict);
+}
+
+const CACHE_DIR = process.env.CACHE_DIR || './public/cache';
+const PFP_DIR = path.join(CACHE_DIR, 'pfp');
+
+export function saveMediaFile(mediaHash: string, base64Data: string): void {
+  if (!fs.existsSync(PFP_DIR)) {
+    fs.mkdirSync(PFP_DIR, { recursive: true });
+  }
+  const filePath = path.join(PFP_DIR, `${mediaHash}.jpg`);
+  const buffer = Buffer.from(base64Data, 'base64');
+  fs.writeFileSync(filePath, buffer);
+}
+
+export function isMediaCached(mediaHash: string): boolean {
+  const filePath = path.join(PFP_DIR, `${mediaHash}.jpg`);
+  return fs.existsSync(filePath);
 }

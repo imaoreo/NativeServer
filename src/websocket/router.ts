@@ -18,6 +18,7 @@ import {
 
 import {
   handleSyncSeenProfile,
+  handleSyncGrid,
   handleUploadMedia,
   handleGetProfileByImageHash
 } from './events/seenProfiles.js';
@@ -72,6 +73,10 @@ export async function routeWSEvent(
 
     case 'sync_seen_profile':
       await handleSyncSeenProfile(authedWs, payload, redis);
+      break;
+
+    case 'sync_grid':
+      await handleSyncGrid(authedWs, payload, redis);
       break;
 
     case 'upload_media':

@@ -146,6 +146,109 @@ export async function handleSyncSeenProfile(
   }
 }
 
+export async function handleSyncGrid(
+  ws: AuthenticatedWebSocket,
+  payload: any,
+  redis: Redis
+): Promise<void> {
+  const deviceId = ws.deviceId;
+  if (!deviceId) {
+    ws.sendError('sync_grid', 'Device not authenticated');
+    return;
+  }
+
+  const profiles: any[] = payload?.profiles;
+  const geohash = typeof payload?.geohash === 'string' ? payload.geohash : null;
+
+  if (!Array.isArray(profiles) || profiles.length === 0) {
+    ws.sendError('sync_grid', 'Invalid payload: profiles must be a non-empty array');
+    return;
+  }
+
+  let savedCount = 0;
+
+  for (const card of profiles) {
+    const rawId = card?.profileId;
+    if (rawId === undefined || rawId === null) continue;
+    const profileId = String(rawId);
+
+    const distance = typeof card.distanceMeters === 'number'
+      ? card.distanceMeters
+      : (typeof card.distance === 'number' ? card.distance : null);
+
+    const onlineUntil = typeof card.onlineUntil === 'number'
+      ? new Date(card.onlineUntil)
+      : null;
+
+    try {
+      await prisma.$transaction(async (tx) => {
+        const existing = await tx.grindrProfile.findUnique({
+          where: { id: profileId }
+        });
+
+        if (!existing) {
+          const rawData = JSON.stringify(card);
+          const displayName = card.displayName ?? null;
+          const age = typeof card.age === 'number' ? card.age : null;
+          const profileImageMediaHash =
+            typeof card.primaryImageUrl === 'string' && !card.primaryImageUrl.startsWith('http')
+              ? card.primaryImageUrl
+              : null;
+
+          await tx.grindrProfile.create({
+            data: { id: profileId, displayName, age, profileImageMediaHash, onlineUntil, rawData }
+          });
+        } else {
+          const existingDict: Record<string, any> =
+            typeof existing.rawData === 'string' ? JSON.parse(existing.rawData) : {};
+
+          const mergedData = { ...existingDict, ...card };
+          const rawData = JSON.stringify(mergedData);
+          
+          const displayName = mergedData.displayName ?? null;
+          const age = typeof mergedData.age === 'number' ? mergedData.age : null;
+          const profileImageMediaHash =
+            typeof mergedData.primaryImageUrl === 'string' && !mergedData.primaryImageUrl.startsWith('http')
+              ? mergedData.primaryImageUrl
+              : (mergedData.profileImageMediaHash ?? null);
+
+          const diffJson = generateReverseDiff(existing.rawData, rawData);
+
+          if (diffJson) {
+            await tx.grindrProfileHistory.create({
+              data: { profileId, diffJson }
+            });
+            await tx.grindrProfile.update({
+              where: { id: profileId },
+              data: { displayName, age, profileImageMediaHash, onlineUntil, rawData }
+            });
+          } else {
+            await tx.grindrProfile.update({
+              where: { id: profileId },
+              data: { lastSeen: new Date() }
+            });
+          }
+        }
+
+        if (distance !== null && geohash !== null && geohash.length > 0) {
+          await tx.grindrProfileDistance.create({
+            data: { profileId, distance, geohash }
+          });
+        }
+      });
+
+      savedCount++;
+    } catch (error) {
+      console.error(`[sync_grid] Failed to sync profile ${profileId}:`, error);
+    }
+  }
+
+  ws.sendSuccess('sync_grid', `Grid synced: ${savedCount}/${profiles.length} profiles saved`, {
+    savedCount,
+    totalCount: profiles.length,
+  });
+}
+
 export async function handleUploadMedia(
   ws: AuthenticatedWebSocket,
   payload: any

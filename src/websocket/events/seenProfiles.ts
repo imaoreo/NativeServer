@@ -87,13 +87,19 @@ export async function handleSyncSeenProfile(
       }
 
       if (distance !== null && geohash !== null && geohash.length > 0) {
-        await tx.grindrProfileDistance.create({
-          data: {
-            profileId,
-            distance,
-            geohash
-          }
+        const distanceExists = await tx.grindrProfileDistance.findFirst({
+          where: { profileId, distance, geohash }
         });
+
+        if (!distanceExists) {
+          await tx.grindrProfileDistance.create({
+            data: {
+              profileId,
+              distance,
+              geohash
+            }
+          });
+        }
       }
 
       if (Array.isArray(profile.medias)) {
@@ -256,9 +262,15 @@ export async function handleSyncGrid(
         }
 
         if (distance !== null && geohash !== null && geohash.length > 0) {
-          await tx.grindrProfileDistance.create({
-            data: { profileId, distance, geohash }
+          const distanceExists = await tx.grindrProfileDistance.findFirst({
+            where: { profileId, distance, geohash }
           });
+
+          if (!distanceExists) {
+            await tx.grindrProfileDistance.create({
+              data: { profileId, distance, geohash }
+            });
+          }
         }
       });
 

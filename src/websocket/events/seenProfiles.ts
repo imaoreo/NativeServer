@@ -146,6 +146,13 @@ export async function handleSyncSeenProfile(
   }
 }
 
+function extractMediaHash(imageUrl: string): string {
+  if (!imageUrl) return '';
+  const cleanUrl = imageUrl.split('?')[0].split('#')[0];
+  const parts = cleanUrl.split('/').filter(Boolean);
+  return parts[parts.length - 1] || '';
+}
+
 export async function handleSyncGrid(
   ws: AuthenticatedWebSocket,
   payload: any,
@@ -166,6 +173,7 @@ export async function handleSyncGrid(
   }
 
   let savedCount = 0;
+  const missingMediaHashesSet = new Set<string>();
 
   for (const card of profiles) {
     const rawId = card?.profileId;
@@ -180,6 +188,15 @@ export async function handleSyncGrid(
       ? new Date(card.onlineUntil)
       : null;
 
+    // Determine profile image media hash
+    const pfpHash = typeof card.primaryImageUrl === 'string'
+      ? extractMediaHash(card.primaryImageUrl)
+      : (typeof card.profileImageMediaHash === 'string' ? card.profileImageMediaHash : null);
+
+    if (pfpHash && !isMediaCached(pfpHash)) {
+      missingMediaHashesSet.add(pfpHash);
+    }
+
     try {
       await prisma.$transaction(async (tx) => {
         const existing = await tx.grindrProfile.findUnique({
@@ -190,10 +207,7 @@ export async function handleSyncGrid(
           const rawData = JSON.stringify(card);
           const displayName = card.displayName ?? null;
           const age = typeof card.age === 'number' ? card.age : null;
-          const profileImageMediaHash =
-            typeof card.primaryImageUrl === 'string' && !card.primaryImageUrl.startsWith('http')
-              ? card.primaryImageUrl
-              : null;
+          const profileImageMediaHash = pfpHash || null;
 
           await tx.grindrProfile.create({
             data: { id: profileId, displayName, age, profileImageMediaHash, onlineUntil, rawData }
@@ -207,10 +221,11 @@ export async function handleSyncGrid(
           
           const displayName = mergedData.displayName ?? null;
           const age = typeof mergedData.age === 'number' ? mergedData.age : null;
-          const profileImageMediaHash =
-            typeof mergedData.primaryImageUrl === 'string' && !mergedData.primaryImageUrl.startsWith('http')
-              ? mergedData.primaryImageUrl
-              : (mergedData.profileImageMediaHash ?? null);
+          
+          const mergedPfpHash = typeof mergedData.primaryImageUrl === 'string'
+            ? extractMediaHash(mergedData.primaryImageUrl)
+            : (mergedData.profileImageMediaHash ?? null);
+          const profileImageMediaHash = mergedPfpHash || null;
 
           const diffJson = generateReverseDiff(existing.rawData, rawData);
 
@@ -246,6 +261,7 @@ export async function handleSyncGrid(
   ws.sendSuccess('sync_grid', `Grid synced: ${savedCount}/${profiles.length} profiles saved`, {
     savedCount,
     totalCount: profiles.length,
+    missingMediaHashes: Array.from(missingMediaHashesSet)
   });
 }
 

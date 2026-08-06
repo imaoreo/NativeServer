@@ -282,7 +282,7 @@ export async function handleUploadMedia(
   }
 
   try {
-    saveMediaFile(mediaHash, base64Data);
+    await saveMediaFile(mediaHash, base64Data);
 
     await prisma.grindrProfileMedia.updateMany({
       where: { mediaHash },

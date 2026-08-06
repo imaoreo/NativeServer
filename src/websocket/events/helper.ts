@@ -133,13 +133,21 @@ export function generateReverseDiff(oldVal: any, newVal: any): string | null {
 const CACHE_DIR = process.env.CACHE_DIR || './public/cache';
 const PFP_DIR = path.join(CACHE_DIR, 'pfp');
 
-export function saveMediaFile(mediaHash: string, base64Data: string): void {
-  if (!fs.existsSync(PFP_DIR)) {
-    fs.mkdirSync(PFP_DIR, { recursive: true });
-  }
+export async function saveMediaFile(mediaHash: string, base64Data: string): Promise<void> {
   const filePath = path.join(PFP_DIR, `${mediaHash}.jpg`);
+  
+  try {
+    if (fs.existsSync(filePath)) {
+      return;
+    }
+  } catch {}
+
+  if (!fs.existsSync(PFP_DIR)) {
+    await fs.promises.mkdir(PFP_DIR, { recursive: true });
+  }
+  
   const buffer = Buffer.from(base64Data, 'base64');
-  fs.writeFileSync(filePath, buffer);
+  await fs.promises.writeFile(filePath, buffer);
 }
 
 export function isMediaCached(mediaHash: string): boolean {

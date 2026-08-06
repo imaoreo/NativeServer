@@ -192,6 +192,7 @@ export async function handleSyncGrid(
     // Remove privacy-sensitive fields
     delete card.unreadCount;
     delete card.chatted;
+    delete card.upsellItemType;
 
     const distance = typeof card.distanceMeters === 'number'
       ? card.distanceMeters
@@ -237,6 +238,7 @@ export async function handleSyncGrid(
           delete existingDict.chatted;
           delete existingDict.distanceMeters;
           delete existingDict.distance;
+          delete existingDict.upsellItemType;
 
           const mergedData = { ...existingDict, ...card };
           const rawData = JSON.stringify(mergedData);

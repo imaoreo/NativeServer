@@ -31,6 +31,8 @@ export async function handleSyncSeenProfile(
   
   const distance = typeof profile.distance === 'number' ? profile.distance : null;
   delete profile.distance;
+  delete profile.unreadCount;
+  delete profile.chatted;
   
   const rawData = JSON.stringify(profile);
 
@@ -180,6 +182,10 @@ export async function handleSyncGrid(
     if (rawId === undefined || rawId === null) continue;
     const profileId = String(rawId);
 
+    // Remove privacy-sensitive fields
+    delete card.unreadCount;
+    delete card.chatted;
+
     const distance = typeof card.distanceMeters === 'number'
       ? card.distanceMeters
       : (typeof card.distance === 'number' ? card.distance : null);
@@ -215,6 +221,10 @@ export async function handleSyncGrid(
         } else {
           const existingDict: Record<string, any> =
             typeof existing.rawData === 'string' ? JSON.parse(existing.rawData) : {};
+
+          // Remove privacy-sensitive fields from existing rawData to prevent merging them back
+          delete existingDict.unreadCount;
+          delete existingDict.chatted;
 
           const mergedData = { ...existingDict, ...card };
           const rawData = JSON.stringify(mergedData);

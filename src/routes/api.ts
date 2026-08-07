@@ -13,6 +13,12 @@ router.get('/profiles', async (req, res) => {
     const minAge = parseInt(req.query.minAge as string);
     const maxAge = parseInt(req.query.maxAge as string);
     const hasPhoto = req.query.hasPhoto === 'true';
+    const gender = req.query.gender as string;
+    const lookingFor = req.query.lookingFor as string;
+    const tribe = req.query.tribe as string;
+    const ethnicity = req.query.ethnicity as string;
+    const sexualPosition = req.query.sexualPosition as string;
+    const onlineOnly = req.query.onlineOnly === 'true';
 
     const where: any = {};
 
@@ -32,6 +38,44 @@ router.get('/profiles', async (req, res) => {
     if (hasPhoto) {
       where.profileImageMediaHash = {
         not: null,
+      };
+    }
+
+    if (onlineOnly) {
+      where.onlineUntil = {
+        gte: new Date(),
+      };
+    }
+
+    if (gender || lookingFor || tribe || ethnicity || sexualPosition) {
+      const conditions: string[] = [];
+      const params: any[] = [];
+
+      if (gender) {
+        params.push(gender);
+        conditions.push(`("rawData"::jsonb -> 'genders') @> $${params.length}`);
+      }
+      if (lookingFor) {
+        params.push(lookingFor);
+        conditions.push(`("rawData"::jsonb -> 'lookingFor') @> $${params.length}`);
+      }
+      if (tribe) {
+        params.push(tribe);
+        conditions.push(`("rawData"::jsonb -> 'grindrTribes') @> $${params.length}`);
+      }
+      if (ethnicity) {
+        params.push(ethnicity);
+        conditions.push(`("rawData"::jsonb ->> 'ethnicity') = $${params.length}`);
+      }
+      if (sexualPosition) {
+        params.push(sexualPosition);
+        conditions.push(`("rawData"::jsonb ->> 'sexualPosition') = $${params.length}`);
+      }
+
+      const sql = `SELECT id FROM "GrindrProfile" WHERE ${conditions.join(' AND ')}`;
+      const result: { id: string }[] = await prisma.$queryRawUnsafe(sql, ...params);
+      where.id = {
+        in: result.map(r => r.id),
       };
     }
 

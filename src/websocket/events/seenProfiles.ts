@@ -34,6 +34,13 @@ export async function handleSyncSeenProfile(
   delete profile.distanceMeters;
   delete profile.unreadCount;
   delete profile.chatted;
+  delete profile.tapped;
+  delete profile.tapped;
+  delete profile.isBlockable;
+  delete profile.hasChattedInLast24Hrs;
+  delete profile.hasUnviewedSpark;
+  delete profile.isFavorite;
+  delete profile.hasUnreadThrob;
   
   const rawData = JSON.stringify(profile);
 
@@ -107,7 +114,7 @@ export async function handleSyncSeenProfile(
         for (const media of profile.medias) {
           if (!media.mediaHash) continue;
           
-          const mediaCreatedAt = media.createdAt ? new Date(media.createdAt * 1000) : null;
+          const mediaCreatedAt = media.createdAt ? new Date(media.createdAt) : null;
           const cached = isMediaCached(media.mediaHash);
 
           await tx.grindrProfileMedia.upsert({
@@ -194,6 +201,12 @@ export async function handleSyncGrid(
     delete card.chatted;
     delete card.upsellItemType;
     delete card.viewed;
+    delete card.tapped;
+    delete card.isBlockable;
+    delete card.hasChattedInLast24Hrs;
+    delete card.hasUnviewedSpark;
+    delete card.isFavorite;
+    delete card.hasUnreadThrob;
 
     const distance = typeof card.distanceMeters === 'number'
       ? card.distanceMeters
@@ -209,8 +222,12 @@ export async function handleSyncGrid(
     // Determine profile image media hash
     const pfpHash = typeof card.primaryImageUrl === 'string'
       ? extractMediaHash(card.primaryImageUrl)
-      : (typeof card.profileImageMediaHash === 'string' ? card.profileImageMediaHash : null);
-
+      : (typeof card.profileImageMediaHash === 'string'
+        ? card.profileImageMediaHash
+        : (Array.isArray(card.photoMediaHashes) && card.photoMediaHashes.length > 0 && typeof card.photoMediaHashes[0] === 'string'
+          ? card.photoMediaHashes[0]
+          : null));
+    
     if (pfpHash && !isMediaCached(pfpHash)) {
       missingMediaHashesSet.add(pfpHash);
     }
@@ -241,6 +258,12 @@ export async function handleSyncGrid(
           delete existingDict.distance;
           delete existingDict.upsellItemType;
           delete existingDict.viewed;
+          delete existingDict.tapped;
+          delete existingDict.isBlockable;
+          delete existingDict.hasChattedInLast24Hrs;
+          delete existingDict.hasUnviewedSpark;
+          delete existingDict.isFavorite;
+          delete existingDict.hasUnreadThrob;
 
           const mergedData = { ...existingDict, ...card };
           const rawData = JSON.stringify(mergedData);

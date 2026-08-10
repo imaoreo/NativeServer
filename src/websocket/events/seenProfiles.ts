@@ -41,6 +41,7 @@ export async function handleSyncSeenProfile(
   delete profile.hasUnviewedSpark;
   delete profile.isFavorite;
   delete profile.hasUnreadThrob;
+  delete profile['@type'];
   
   const rawData = JSON.stringify(profile);
 
@@ -207,6 +208,7 @@ export async function handleSyncGrid(
     delete card.hasUnviewedSpark;
     delete card.isFavorite;
     delete card.hasUnreadThrob;
+    delete card['@type'];
 
     const distance = typeof card.distanceMeters === 'number'
       ? card.distanceMeters
@@ -264,6 +266,7 @@ export async function handleSyncGrid(
           delete existingDict.hasUnviewedSpark;
           delete existingDict.isFavorite;
           delete existingDict.hasUnreadThrob;
+          delete existingDict['@type'];
 
           const mergedData = { ...existingDict, ...card };
           const rawData = JSON.stringify(mergedData);

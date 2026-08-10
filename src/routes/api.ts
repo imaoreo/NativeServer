@@ -14,10 +14,15 @@ router.get('/profiles', async (req, res) => {
     const maxAge = parseInt(req.query.maxAge as string);
     const hasPhoto = req.query.hasPhoto === 'true';
     const gender = req.query.gender as string;
+    const genderExclude = req.query.genderExclude as string;
     const lookingFor = req.query.lookingFor as string;
+    const lookingForExclude = req.query.lookingForExclude as string;
     const tribe = req.query.tribe as string;
+    const tribeExclude = req.query.tribeExclude as string;
     const ethnicity = req.query.ethnicity as string;
+    const ethnicityExclude = req.query.ethnicityExclude as string;
     const sexualPosition = req.query.sexualPosition as string;
+    const sexualPositionExclude = req.query.sexualPositionExclude as string;
     const onlineOnly = req.query.onlineOnly === 'true';
 
     const where: any = {};
@@ -47,30 +52,69 @@ router.get('/profiles', async (req, res) => {
       };
     }
 
-    if (gender || lookingFor || tribe || ethnicity || sexualPosition) {
+    if (
+      gender || genderExclude ||
+      lookingFor || lookingForExclude ||
+      tribe || tribeExclude ||
+      ethnicity || ethnicityExclude ||
+      sexualPosition || sexualPositionExclude
+    ) {
       const conditions: string[] = [];
       const params: any[] = [];
 
-      if (gender) {
-        params.push(gender);
-        conditions.push(`("rawData"::jsonb -> 'genders') @> $${params.length}`);
-      }
-      if (lookingFor) {
-        params.push(lookingFor);
-        conditions.push(`("rawData"::jsonb -> 'lookingFor') @> $${params.length}`);
-      }
-      if (tribe) {
-        params.push(tribe);
-        conditions.push(`("rawData"::jsonb -> 'grindrTribes') @> $${params.length}`);
-      }
-      if (ethnicity) {
-        params.push(ethnicity);
-        conditions.push(`("rawData"::jsonb ->> 'ethnicity') = $${params.length}`);
-      }
-      if (sexualPosition) {
-        params.push(sexualPosition);
-        conditions.push(`("rawData"::jsonb ->> 'sexualPosition') = $${params.length}`);
-      }
+      // Helper for array fields (JSONB array contains or NOT contains)
+      const handleArrayField = (rawDataKey: string, includeVal?: string, excludeVal?: string) => {
+        if (includeVal) {
+          const vals = includeVal.split(',').map(v => v.trim()).filter(Boolean);
+          if (vals.length > 0) {
+            const orConds = vals.map(v => {
+              params.push(v);
+              return `("rawData"::jsonb -> '${rawDataKey}') @> $${params.length}`;
+            });
+            conditions.push(`(${orConds.join(' OR ')})`);
+          }
+        }
+        if (excludeVal) {
+          const vals = excludeVal.split(',').map(v => v.trim()).filter(Boolean);
+          if (vals.length > 0) {
+            const andConds = vals.map(v => {
+              params.push(v);
+              return `NOT (("rawData"::jsonb -> '${rawDataKey}') @> $${params.length})`;
+            });
+            conditions.push(`(${andConds.join(' AND ')})`);
+          }
+        }
+      };
+
+      // Helper for scalar fields (JSONB scalar equal or NOT equal)
+      const handleScalarField = (rawDataKey: string, includeVal?: string, excludeVal?: string) => {
+        if (includeVal) {
+          const vals = includeVal.split(',').map(v => v.trim()).filter(Boolean);
+          if (vals.length > 0) {
+            const placeholders = vals.map(v => {
+              params.push(v);
+              return `$${params.length}`;
+            });
+            conditions.push(`("rawData"::jsonb ->> '${rawDataKey}') IN (${placeholders.join(', ')})`);
+          }
+        }
+        if (excludeVal) {
+          const vals = excludeVal.split(',').map(v => v.trim()).filter(Boolean);
+          if (vals.length > 0) {
+            const placeholders = vals.map(v => {
+              params.push(v);
+              return `$${params.length}`;
+            });
+            conditions.push(`(("rawData"::jsonb ->> '${rawDataKey}') NOT IN (${placeholders.join(', ')}) OR ("rawData"::jsonb -> '${rawDataKey}') IS NULL)`);
+          }
+        }
+      };
+
+      handleArrayField('genders', gender, genderExclude);
+      handleArrayField('lookingFor', lookingFor, lookingForExclude);
+      handleArrayField('grindrTribes', tribe, tribeExclude);
+      handleScalarField('ethnicity', ethnicity, ethnicityExclude);
+      handleScalarField('sexualPosition', sexualPosition, sexualPositionExclude);
 
       const sql = `SELECT id FROM "GrindrProfile" WHERE ${conditions.join(' AND ')}`;
       const result: { id: string }[] = await prisma.$queryRawUnsafe(sql, ...params);

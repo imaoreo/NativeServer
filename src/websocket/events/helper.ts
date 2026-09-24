@@ -152,12 +152,34 @@ export async function saveMediaFile(mediaHash: string, base64Data: string): Prom
     }
   } catch {}
 
+  const buffer = Buffer.from(base64Data, 'base64');
+  if (!detectImageExtension(buffer)) {
+    throw new Error('Unsupported media type');
+  }
+
   if (!fs.existsSync(PFP_DIR)) {
     await fs.promises.mkdir(PFP_DIR, { recursive: true });
   }
-  
-  const buffer = Buffer.from(base64Data, 'base64');
+
   await fs.promises.writeFile(filePath, buffer);
+}
+
+export async function findProfileMediaFile(mediaHash: string): Promise<{ filePath: string; contentType: string } | null> {
+  if (!isValidMediaHash(mediaHash)) return null;
+
+  const filePath = path.join(PFP_DIR, `${mediaHash}.jpg`);
+  let handle: fs.promises.FileHandle | undefined;
+  try {
+    handle = await fs.promises.open(filePath, 'r');
+    const header = Buffer.alloc(16);
+    await handle.read(header, 0, 16, 0);
+    const ext = detectImageExtension(header);
+    return { filePath, contentType: ext ? CHAT_MEDIA_CONTENT_TYPES[ext] : 'application/octet-stream' };
+  } catch {
+    return null;
+  } finally {
+    await handle?.close();
+  }
 }
 
 export function isMediaCached(mediaHash: string): boolean {

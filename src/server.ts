@@ -5,10 +5,9 @@ import path from 'path';
 import { Redis } from 'ioredis';
 import { setupWebSocket } from './websocket/index.js';
 import apiRouter from './routes/api.js';
-import { findChatMediaFile } from './websocket/events/helper.js';
+import { findChatMediaFile, findProfileMediaFile } from './websocket/events/helper.js';
 
 const PORT = process.env.PORT || 3000;
-const CACHE_DIR = process.env.CACHE_DIR || './public/cache';
 
 const app = express();
 const server = http.createServer(app);
@@ -38,13 +37,19 @@ app.get('/health', (req, res) => {
   res.json({ status: 'healthy' });
 });
 
-app.use('/public/cache/pfp', express.static(path.resolve(CACHE_DIR, 'pfp'), {
-  maxAge: '7d',
-  setHeaders: (res) => {
-    res.setHeader('X-Content-Type-Options', 'nosniff');
-    res.setHeader('Cache-Control', 'public, max-age=604800, immutable');
+app.get('/public/cache/pfp/:file', async (req, res) => {
+  const mediaHash = req.params.file.replace(/\.jpg$/, '');
+  const media = await findProfileMediaFile(mediaHash);
+  if (!media) {
+    res.status(404).send('Not Found');
+    return;
   }
-}));
+
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Cache-Control', 'public, max-age=604800, immutable');
+  res.type(media.contentType);
+  res.sendFile(path.resolve(media.filePath));
+});
 
 app.get('/public/cache/chat/:mediaHash', (req, res) => {
   const media = findChatMediaFile(req.params.mediaHash);

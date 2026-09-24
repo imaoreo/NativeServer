@@ -339,6 +339,11 @@ export async function handleUploadMedia(
     return;
   }
 
+  if (base64Data.length > Math.ceil(MAX_CHAT_MEDIA_BYTES * 4 / 3) + 4) {
+    ws.sendError('upload_media', 'Media too large');
+    return;
+  }
+
   try {
     await saveMediaFile(mediaHash, base64Data);
 

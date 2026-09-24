@@ -12,8 +12,6 @@ import {
 } from './events/account.js';
 
 import {
-  handleSaveData,
-  handleGetData,
   handleSyncPush,
   handleSyncPull
 } from './events/storage.js';
@@ -64,14 +62,6 @@ export async function routeWSEvent(
 
     case 'remove_device':
       await handleRemoveDevice(authedWs, payload, wss);
-      break;
-
-    case 'save_data':
-      await handleSaveData(authedWs, payload, redis);
-      break;
-
-    case 'get_data':
-      await handleGetData(authedWs, payload, redis);
       break;
 
     case 'sync_push':

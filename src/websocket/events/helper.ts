@@ -132,8 +132,18 @@ export function generateReverseDiff(oldVal: any, newVal: any): string | null {
 
 const CACHE_DIR = process.env.CACHE_DIR || './public/cache';
 const PFP_DIR = path.join(CACHE_DIR, 'pfp');
+export const CHAT_DIR = path.join(CACHE_DIR, 'chat');
+
+const MEDIA_HASH_PATTERN = /^[A-Za-z0-9_-]{8,128}$/;
+
+export function isValidMediaHash(mediaHash: unknown): mediaHash is string {
+  return typeof mediaHash === 'string' && MEDIA_HASH_PATTERN.test(mediaHash);
+}
 
 export async function saveMediaFile(mediaHash: string, base64Data: string): Promise<void> {
+  if (!isValidMediaHash(mediaHash)) {
+    throw new Error(`Invalid media hash`);
+  }
   const filePath = path.join(PFP_DIR, `${mediaHash}.jpg`);
   
   try {
@@ -151,6 +161,57 @@ export async function saveMediaFile(mediaHash: string, base64Data: string): Prom
 }
 
 export function isMediaCached(mediaHash: string): boolean {
+  if (!isValidMediaHash(mediaHash)) return false;
   const filePath = path.join(PFP_DIR, `${mediaHash}.jpg`);
   return fs.existsSync(filePath);
+}
+
+export const MAX_CHAT_MEDIA_BYTES = 15 * 1024 * 1024;
+
+const CHAT_MEDIA_EXTENSIONS = ['jpg', 'png', 'gif', 'webp', 'heic'] as const;
+type chatMediaExtension = typeof CHAT_MEDIA_EXTENSIONS[number];
+
+export const CHAT_MEDIA_CONTENT_TYPES: Record<chatMediaExtension, string> = {
+  jpg: 'image/jpeg',
+  png: 'image/png',
+  gif: 'image/gif',
+  webp: 'image/webp',
+  heic: 'image/heic'
+};
+
+export function detectImageExtension(buffer: Buffer): chatMediaExtension | null {
+  if (buffer.length < 12) return null;
+  if (buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) return 'jpg';
+  if (buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return 'png';
+  if (buffer.subarray(0, 4).toString('ascii') === 'GIF8') return 'gif';
+  if (buffer.subarray(0, 4).toString('ascii') === 'RIFF' && buffer.subarray(8, 12).toString('ascii') === 'WEBP') return 'webp';
+  if (buffer.subarray(4, 8).toString('ascii') === 'ftyp') {
+    const brand = buffer.subarray(8, 12).toString('ascii');
+    if (['heic', 'heix', 'mif1', 'msf1'].includes(brand)) return 'heic';
+  }
+  return null;
+}
+
+export function findChatMediaFile(mediaHash: string): { filePath: string; contentType: string } | null {
+  if (!isValidMediaHash(mediaHash)) return null;
+  for (const ext of CHAT_MEDIA_EXTENSIONS) {
+    const filePath = path.join(CHAT_DIR, `${mediaHash}.${ext}`);
+    if (fs.existsSync(filePath)) {
+      return { filePath, contentType: CHAT_MEDIA_CONTENT_TYPES[ext] };
+    }
+  }
+  return null;
+}
+
+export async function saveChatMediaFile(mediaHash: string, buffer: Buffer): Promise<void> {
+  const ext = detectImageExtension(buffer);
+  if (!ext) {
+    throw new Error('Unsupported media type');
+  }
+  if (findChatMediaFile(mediaHash)) {
+    return;
+  }
+
+  await fs.promises.mkdir(CHAT_DIR, { recursive: true });
+  await fs.promises.writeFile(path.join(CHAT_DIR, `${mediaHash}.${ext}`), buffer);
 }

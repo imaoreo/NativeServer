@@ -5,6 +5,7 @@ import path from 'path';
 import { Redis } from 'ioredis';
 import { setupWebSocket } from './websocket/index.js';
 import apiRouter from './routes/api.js';
+import { findChatMediaFile } from './websocket/events/helper.js';
 
 const PORT = process.env.PORT || 3000;
 const CACHE_DIR = process.env.CACHE_DIR || './public/cache';
@@ -44,6 +45,19 @@ app.use('/public/cache/pfp', express.static(path.resolve(CACHE_DIR, 'pfp'), {
     res.setHeader('Cache-Control', 'public, max-age=604800, immutable');
   }
 }));
+
+app.get('/public/cache/chat/:mediaHash', (req, res) => {
+  const media = findChatMediaFile(req.params.mediaHash);
+  if (!media) {
+    res.status(404).send('Not Found');
+    return;
+  }
+
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Cache-Control', 'public, max-age=604800, immutable');
+  res.type(media.contentType);
+  res.sendFile(path.resolve(media.filePath));
+});
 
 app.use((req, res) => {
   res.status(404).send('Not Found');

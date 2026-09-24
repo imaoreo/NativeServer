@@ -1,7 +1,7 @@
 import { Redis } from 'ioredis';
 import { AuthenticatedWebSocket } from './types.js';
 import { prisma } from '../../db.js';
-import { generateReverseDiff, isMediaCached, saveMediaFile } from './helper.js';
+import { generateReverseDiff, isMediaCached, saveMediaFile, isValidMediaHash, checkRateLimit, saveChatMediaFile, MAX_CHAT_MEDIA_BYTES } from './helper.js';
 
 export async function handleSyncSeenProfile(
   ws: AuthenticatedWebSocket,
@@ -334,7 +334,7 @@ export async function handleUploadMedia(
   }
 
   const { mediaHash, base64Data } = payload || {};
-  if (typeof mediaHash !== 'string' || typeof base64Data !== 'string') {
+  if (!isValidMediaHash(mediaHash) || typeof base64Data !== 'string') {
     ws.sendError('upload_media', 'Invalid payload');
     return;
   }
@@ -351,6 +351,42 @@ export async function handleUploadMedia(
   } catch (error) {
     console.error(`Failed to upload media ${mediaHash}:`, error);
     ws.sendError('upload_media', 'Failed to save media');
+  }
+}
+
+export async function handleUploadChatMedia(
+  ws: AuthenticatedWebSocket,
+  payload: any,
+  redis: Redis
+): Promise<void> {
+  const deviceId = ws.deviceId;
+  if (!deviceId) {
+    ws.sendError('upload_chat_media', 'Device not authenticated');
+    return;
+  }
+
+  const { mediaHash, base64Data } = payload || {};
+  if (!isValidMediaHash(mediaHash) || typeof base64Data !== 'string') {
+    ws.sendError('upload_chat_media', 'Invalid payload');
+    return;
+  }
+
+  if (base64Data.length > Math.ceil(MAX_CHAT_MEDIA_BYTES * 4 / 3) + 4) {
+    ws.sendError('upload_chat_media', 'Media too large');
+    return;
+  }
+
+  if (await checkRateLimit(redis, `rl:chatmedia:${deviceId}`, 60, 600)) {
+    ws.sendError('upload_chat_media', 'Too many uploads');
+    return;
+  }
+
+  try {
+    await saveChatMediaFile(mediaHash, Buffer.from(base64Data, 'base64'));
+    ws.sendSuccess('upload_chat_media', 'Chat media cached successfully', { mediaHash });
+  } catch (error) {
+    console.error(`Failed to upload chat media ${mediaHash}:`, error);
+    ws.sendError('upload_chat_media', 'Failed to save media');
   }
 }
 

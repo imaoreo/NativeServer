@@ -13,7 +13,9 @@ import {
 
 import {
   handleSaveData,
-  handleGetData
+  handleGetData,
+  handleSyncPush,
+  handleSyncPull
 } from './events/storage.js';
 
 import {
@@ -70,6 +72,14 @@ export async function routeWSEvent(
 
     case 'get_data':
       await handleGetData(authedWs, payload, redis);
+      break;
+
+    case 'sync_push':
+      await handleSyncPush(authedWs, payload, redis);
+      break;
+
+    case 'sync_pull':
+      await handleSyncPull(authedWs, payload, redis);
       break;
 
     case 'sync_seen_profile':

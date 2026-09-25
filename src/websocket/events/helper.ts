@@ -174,7 +174,7 @@ export async function findProfileMediaFile(mediaHash: string): Promise<{ filePat
     const header = Buffer.alloc(16);
     await handle.read(header, 0, 16, 0);
     const ext = detectImageExtension(header);
-    return { filePath, contentType: ext ? CHAT_MEDIA_CONTENT_TYPES[ext] : 'application/octet-stream' };
+    return { filePath, contentType: ext ? MEDIA_CONTENT_TYPES[ext] : 'application/octet-stream' };
   } catch {
     return null;
   } finally {
@@ -188,20 +188,25 @@ export function isMediaCached(mediaHash: string): boolean {
   return fs.existsSync(filePath);
 }
 
-export const MAX_CHAT_MEDIA_BYTES = 15 * 1024 * 1024;
+export const MAX_CHAT_MEDIA_BYTES = 50 * 1024 * 1024;
 
-const CHAT_MEDIA_EXTENSIONS = ['jpg', 'png', 'gif', 'webp', 'heic'] as const;
-type chatMediaExtension = typeof CHAT_MEDIA_EXTENSIONS[number];
+const IMAGE_EXTENSIONS = ['jpg', 'png', 'gif', 'webp', 'heic'] as const;
+type imageExtension = typeof IMAGE_EXTENSIONS[number];
 
-export const CHAT_MEDIA_CONTENT_TYPES: Record<chatMediaExtension, string> = {
+const MEDIA_EXTENSIONS = [...IMAGE_EXTENSIONS, 'mp4', 'mov'] as const;
+type mediaExtension = typeof MEDIA_EXTENSIONS[number];
+
+export const MEDIA_CONTENT_TYPES: Record<mediaExtension, string> = {
   jpg: 'image/jpeg',
   png: 'image/png',
   gif: 'image/gif',
   webp: 'image/webp',
-  heic: 'image/heic'
+  heic: 'image/heic',
+  mp4: 'video/mp4',
+  mov: 'video/quicktime'
 };
 
-export function detectImageExtension(buffer: Buffer): chatMediaExtension | null {
+export function detectImageExtension(buffer: Buffer): imageExtension | null {
   if (buffer.length < 12) return null;
   if (buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) return 'jpg';
   if (buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return 'png';
@@ -214,19 +219,28 @@ export function detectImageExtension(buffer: Buffer): chatMediaExtension | null 
   return null;
 }
 
+export function detectMediaExtension(buffer: Buffer): mediaExtension | null {
+  const image = detectImageExtension(buffer);
+  if (image) return image;
+  if (buffer.length >= 12 && buffer.subarray(4, 8).toString('ascii') === 'ftyp') {
+    return buffer.subarray(8, 12).toString('ascii') === 'qt  ' ? 'mov' : 'mp4';
+  }
+  return null;
+}
+
 export function findChatMediaFile(mediaHash: string): { filePath: string; contentType: string } | null {
   if (!isValidMediaHash(mediaHash)) return null;
-  for (const ext of CHAT_MEDIA_EXTENSIONS) {
+  for (const ext of MEDIA_EXTENSIONS) {
     const filePath = path.join(CHAT_DIR, `${mediaHash}.${ext}`);
     if (fs.existsSync(filePath)) {
-      return { filePath, contentType: CHAT_MEDIA_CONTENT_TYPES[ext] };
+      return { filePath, contentType: MEDIA_CONTENT_TYPES[ext] };
     }
   }
   return null;
 }
 
 export async function saveChatMediaFile(mediaHash: string, buffer: Buffer): Promise<void> {
-  const ext = detectImageExtension(buffer);
+  const ext = detectMediaExtension(buffer);
   if (!ext) {
     throw new Error('Unsupported media type');
   }
@@ -235,7 +249,9 @@ export async function saveChatMediaFile(mediaHash: string, buffer: Buffer): Prom
   }
 
   await fs.promises.mkdir(CHAT_DIR, { recursive: true });
-  await fs.promises.writeFile(path.join(CHAT_DIR, `${mediaHash}.${ext}`), buffer);
+  await fs.promises.writeFile(path.join(CHAT_DIR, `${mediaHash}.${ext}`), buffer, { flag: 'wx' }).catch(error => {
+    if (error?.code !== 'EEXIST') throw error;
+  });
 }
 
 export const ALBUMS_DIR = path.join(CACHE_DIR, 'albums');
@@ -247,24 +263,9 @@ export function isValidGrindrId(id: unknown): id is string {
   return typeof id === 'string' && GRINDR_ID_PATTERN.test(id);
 }
 
-const ALBUM_MEDIA_CONTENT_TYPES: Record<string, string> = {
-  ...CHAT_MEDIA_CONTENT_TYPES,
-  mp4: 'video/mp4',
-  mov: 'video/quicktime'
-};
-
-export function detectAlbumMediaExtension(buffer: Buffer): string | null {
-  const image = detectImageExtension(buffer);
-  if (image) return image;
-  if (buffer.length >= 12 && buffer.subarray(4, 8).toString('ascii') === 'ftyp') {
-    return buffer.subarray(8, 12).toString('ascii') === 'qt  ' ? 'mov' : 'mp4';
-  }
-  return null;
-}
-
 export function albumMediaContentType(fileName: string): string {
   const ext = path.extname(fileName).slice(1);
-  return ALBUM_MEDIA_CONTENT_TYPES[ext] ?? 'application/octet-stream';
+  return MEDIA_CONTENT_TYPES[ext as mediaExtension] ?? 'application/octet-stream';
 }
 
 export function albumMediaPath(albumId: string, fileName: string): string {
@@ -272,7 +273,7 @@ export function albumMediaPath(albumId: string, fileName: string): string {
 }
 
 export async function saveAlbumMediaFile(albumId: string, contentId: string, buffer: Buffer): Promise<string> {
-  const ext = detectAlbumMediaExtension(buffer);
+  const ext = detectMediaExtension(buffer);
   if (!ext) {
     throw new Error('Unsupported media type');
   }

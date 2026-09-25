@@ -1,7 +1,7 @@
 import { Redis } from 'ioredis';
 import { AuthenticatedWebSocket } from './types.js';
 import { prisma } from '../../db.js';
-import { generateReverseDiff, isMediaCached, saveMediaFile, isValidMediaHash, checkRateLimit, saveChatMediaFile, MAX_CHAT_MEDIA_BYTES } from './helper.js';
+import { generateReverseDiff, isMediaCached, saveMediaFile, isValidMediaHash, checkRateLimit, saveChatMediaFile, MAX_CHAT_MEDIA_BYTES, isValidGrindrId, saveAlbumMediaFile, albumMediaContentType, MAX_ALBUM_MEDIA_BYTES } from './helper.js';
 
 export async function handleSyncSeenProfile(
   ws: AuthenticatedWebSocket,
@@ -392,6 +392,54 @@ export async function handleUploadChatMedia(
   } catch (error) {
     console.error(`Failed to upload chat media ${mediaHash}:`, error);
     ws.sendError('upload_chat_media', 'Failed to save media');
+  }
+}
+
+export async function handleUploadAlbumMedia(
+  ws: AuthenticatedWebSocket,
+  payload: any,
+  redis: Redis
+): Promise<void> {
+  const deviceId = ws.deviceId;
+  if (!deviceId) {
+    ws.sendError('upload_album_media', 'Device not authenticated');
+    return;
+  }
+
+  const { albumId, contentId, ownerProfileId, base64Data } = payload || {};
+  if (!isValidGrindrId(albumId) || !isValidGrindrId(contentId) || !isValidGrindrId(ownerProfileId) || typeof base64Data !== 'string') {
+    ws.sendError('upload_album_media', 'Invalid payload');
+    return;
+  }
+
+  if (base64Data.length > Math.ceil(MAX_ALBUM_MEDIA_BYTES * 4 / 3) + 4) {
+    ws.sendError('upload_album_media', 'Media too large');
+    return;
+  }
+
+  const existing = await prisma.grindrAlbumMedia.findUnique({ where: { albumId_contentId: { albumId, contentId } } });
+  if (existing) {
+    ws.sendSuccess('upload_album_media', 'Already backed up', { albumId, contentId });
+    return;
+  }
+
+  if (await checkRateLimit(redis, `rl:albummedia:${deviceId}`, 120, 600)) {
+    ws.sendError('upload_album_media', 'Too many uploads');
+    return;
+  }
+
+  try {
+    const fileName = await saveAlbumMediaFile(albumId, contentId, Buffer.from(base64Data, 'base64'));
+
+    await prisma.grindrAlbumMedia.createMany({
+      data: [{ albumId, contentId, ownerProfileId, contentType: albumMediaContentType(fileName), fileName, uploadedById: deviceId }],
+      skipDuplicates: true
+    });
+
+    ws.sendSuccess('upload_album_media', 'Album media backed up', { albumId, contentId });
+  } catch (error) {
+    console.error(`Failed to back up album media ${albumId}/${contentId}:`, error);
+    ws.sendError('upload_album_media', 'Failed to save media');
   }
 }
 

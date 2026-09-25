@@ -109,3 +109,16 @@ model Storage {
   @@unique([userId, location])
   @@index([userId])
 }
+
+model GrindrAlbumMedia {
+  albumId        String
+  contentId      String
+  ownerProfileId String
+  contentType    String
+  fileName       String
+  uploadedById   String?
+  createdAt      DateTime @default(now())
+
+  @@id([albumId, contentId])
+  @@index([ownerProfileId])
+}

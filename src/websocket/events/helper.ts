@@ -237,3 +237,58 @@ export async function saveChatMediaFile(mediaHash: string, buffer: Buffer): Prom
   await fs.promises.mkdir(CHAT_DIR, { recursive: true });
   await fs.promises.writeFile(path.join(CHAT_DIR, `${mediaHash}.${ext}`), buffer);
 }
+
+export const ALBUMS_DIR = path.join(CACHE_DIR, 'albums');
+export const MAX_ALBUM_MEDIA_BYTES = 50 * 1024 * 1024;
+
+const GRINDR_ID_PATTERN = /^[0-9]{1,20}$/;
+
+export function isValidGrindrId(id: unknown): id is string {
+  return typeof id === 'string' && GRINDR_ID_PATTERN.test(id);
+}
+
+const ALBUM_MEDIA_CONTENT_TYPES: Record<string, string> = {
+  ...CHAT_MEDIA_CONTENT_TYPES,
+  mp4: 'video/mp4',
+  mov: 'video/quicktime'
+};
+
+export function detectAlbumMediaExtension(buffer: Buffer): string | null {
+  const image = detectImageExtension(buffer);
+  if (image) return image;
+  if (buffer.length >= 12 && buffer.subarray(4, 8).toString('ascii') === 'ftyp') {
+    return buffer.subarray(8, 12).toString('ascii') === 'qt  ' ? 'mov' : 'mp4';
+  }
+  return null;
+}
+
+export function albumMediaContentType(fileName: string): string {
+  const ext = path.extname(fileName).slice(1);
+  return ALBUM_MEDIA_CONTENT_TYPES[ext] ?? 'application/octet-stream';
+}
+
+export function albumMediaPath(albumId: string, fileName: string): string {
+  return path.join(ALBUMS_DIR, albumId, fileName);
+}
+
+export async function saveAlbumMediaFile(albumId: string, contentId: string, buffer: Buffer): Promise<string> {
+  const ext = detectAlbumMediaExtension(buffer);
+  if (!ext) {
+    throw new Error('Unsupported media type');
+  }
+
+  const folder = path.join(ALBUMS_DIR, albumId);
+  await fs.promises.mkdir(folder, { recursive: true });
+
+  const existing = (await fs.promises.readdir(folder)).find(name => name.startsWith(`${contentId}.`));
+  if (existing) {
+    return existing;
+  }
+
+  const fileName = `${contentId}.${ext}`;
+
+  await fs.promises.writeFile(path.join(folder, fileName), buffer, { flag: 'wx' }).catch(error => {
+    if (error?.code !== 'EEXIST') throw error;
+  });
+  return fileName;
+}

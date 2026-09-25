@@ -21,6 +21,7 @@ import {
   handleSyncGrid,
   handleUploadMedia,
   handleUploadChatMedia,
+  handleUploadAlbumMedia,
   handleGetProfileByImageHash
 } from './events/seenProfiles.js';
 
@@ -86,6 +87,10 @@ export async function routeWSEvent(
 
     case 'upload_chat_media':
       await handleUploadChatMedia(authedWs, payload, redis);
+      break;
+
+    case 'upload_album_media':
+      await handleUploadAlbumMedia(authedWs, payload, redis);
       break;
 
     case 'get_profile_by_image':

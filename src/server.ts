@@ -7,6 +7,7 @@ import { setupWebSocket } from './websocket/index.js';
 import apiRouter from './routes/api.js';
 import { findChatMediaFile, findProfileMediaFile, isValidGrindrId, albumMediaPath } from './websocket/events/helper.js';
 import { prisma } from './db.js';
+import { LEGAL_VERSIONS } from './legal/versions.js';
 
 const PORT = process.env.PORT || 3000;
 
@@ -50,6 +51,11 @@ app.get('/public/cache/pfp/:file', async (req, res) => {
   res.setHeader('Cache-Control', 'public, max-age=604800, immutable');
   res.type(media.contentType);
   res.sendFile(path.resolve(media.filePath));
+});
+
+app.get('/public/legal', (_req, res) => {
+  res.setHeader('Cache-Control', 'public, max-age=300');
+  res.json(LEGAL_VERSIONS);
 });
 
 app.get('/public/cache/chat/:mediaHash', (req, res) => {

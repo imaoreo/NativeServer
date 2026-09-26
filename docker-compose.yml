@@ -10,7 +10,7 @@ services:
     volumes:
       - /jay/images:/usr/src/app/public/cache
     ports:
-      - "336:3000"
+      - "3366:3000"
     depends_on:
       - postgres
       - redis
@@ -22,7 +22,7 @@ services:
     container_name: grind-postgres
     restart: unless-stopped
     ports:
-      - "335:5432"
+      - "3355:5432"
     environment:
       - POSTGRES_USER=grind_user
       - POSTGRES_PASSWORD=secure_password123

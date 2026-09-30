@@ -1,6 +1,7 @@
 import { Redis } from 'ioredis';
 import { AuthenticatedWebSocket } from './types.js';
 import { prisma } from '../../db.js';
+import type { Prisma } from '@prisma/client';
 import { generateReverseDiff, isMediaCached, saveMediaFile, isValidMediaHash, checkRateLimit, saveChatMediaFile, MAX_CHAT_MEDIA_BYTES, isValidGrindrId, saveAlbumMediaFile, albumMediaContentType, MAX_ALBUM_MEDIA_BYTES } from './helper.js';
 
 export async function handleSyncSeenProfile(
@@ -170,6 +171,36 @@ function extractMediaHash(imageUrl: string): string {
   return parts[parts.length - 1] || '';
 }
 
+const PRIVATE_GRID_FIELDS = [
+  'unreadCount', 'chatted', 'distanceMeters', 'distance', 'upsellItemType', 'viewed', 'tapped', 'isBlockable',
+  'hasChattedInLast24Hrs', 'hasUnviewedSpark', 'isFavorite', 'hasUnreadThrob', '@type'
+];
+
+function stripPrivateGridFields(card: Record<string, any>): void {
+  for (const field of PRIVATE_GRID_FIELDS) {
+    delete card[field];
+  }
+}
+
+type GridCard = {
+  profileId: string;
+  card: Record<string, any>;
+  distance: number | null;
+  onlineUntil: Date | null;
+  pfpHash: string | null;
+};
+
+function gridPfpHash(card: Record<string, any>): string | null {
+  const hash = typeof card.primaryImageUrl === 'string'
+    ? extractMediaHash(card.primaryImageUrl)
+    : (typeof card.profileImageMediaHash === 'string'
+      ? card.profileImageMediaHash
+      : (Array.isArray(card.photoMediaHashes) && card.photoMediaHashes.length > 0 && typeof card.photoMediaHashes[0] === 'string'
+        ? card.photoMediaHashes[0]
+        : null));
+  return hash || null;
+}
+
 export async function handleSyncGrid(
   ws: AuthenticatedWebSocket,
   payload: any,
@@ -182,14 +213,14 @@ export async function handleSyncGrid(
   }
 
   const profiles: any[] = payload?.profiles;
-  const geohash = typeof payload?.geohash === 'string' ? payload.geohash : null;
+  const geohash = typeof payload?.geohash === 'string' && payload.geohash.length > 0 ? payload.geohash : null;
 
   if (!Array.isArray(profiles) || profiles.length === 0) {
     ws.sendError('sync_grid', 'Invalid payload: profiles must be a non-empty array');
     return;
   }
 
-  let savedCount = 0;
+  const cards = new Map<string, GridCard>();
   const missingMediaHashesSet = new Set<string>();
 
   for (const card of profiles) {
@@ -197,130 +228,115 @@ export async function handleSyncGrid(
     if (rawId === undefined || rawId === null) continue;
     const profileId = String(rawId);
 
-    // Remove privacy-sensitive fields
-    delete card.unreadCount;
-    delete card.chatted;
-    delete card.upsellItemType;
-    delete card.viewed;
-    delete card.tapped;
-    delete card.isBlockable;
-    delete card.hasChattedInLast24Hrs;
-    delete card.hasUnviewedSpark;
-    delete card.isFavorite;
-    delete card.hasUnreadThrob;
-    delete card['@type'];
-
     const distance = typeof card.distanceMeters === 'number'
       ? card.distanceMeters
       : (typeof card.distance === 'number' ? card.distance : null);
+    const onlineUntil = typeof card.onlineUntil === 'number' ? new Date(card.onlineUntil) : null;
 
-    delete card.distanceMeters;
-    delete card.distance;
+    stripPrivateGridFields(card);
 
-    const onlineUntil = typeof card.onlineUntil === 'number'
-      ? new Date(card.onlineUntil)
-      : null;
-
-    // Determine profile image media hash
-    const pfpHash = typeof card.primaryImageUrl === 'string'
-      ? extractMediaHash(card.primaryImageUrl)
-      : (typeof card.profileImageMediaHash === 'string'
-        ? card.profileImageMediaHash
-        : (Array.isArray(card.photoMediaHashes) && card.photoMediaHashes.length > 0 && typeof card.photoMediaHashes[0] === 'string'
-          ? card.photoMediaHashes[0]
-          : null));
-    
+    const pfpHash = gridPfpHash(card);
     if (pfpHash && !isMediaCached(pfpHash)) {
       missingMediaHashesSet.add(pfpHash);
     }
 
-    try {
-      await prisma.$transaction(async (tx) => {
-        const existing = await tx.grindrProfile.findUnique({
-          where: { id: profileId }
-        });
-
-        if (!existing) {
-          const rawData = JSON.stringify(card);
-          const displayName = card.displayName ?? null;
-          const age = typeof card.age === 'number' ? card.age : null;
-          const profileImageMediaHash = pfpHash || null;
-
-          await tx.grindrProfile.create({
-            data: { id: profileId, displayName, age, profileImageMediaHash, onlineUntil, rawData }
-          });
-        } else {
-          const existingDict: Record<string, any> =
-            typeof existing.rawData === 'string' ? JSON.parse(existing.rawData) : {};
-
-          // Remove privacy-sensitive fields from existing rawData to prevent merging them back
-          delete existingDict.unreadCount;
-          delete existingDict.chatted;
-          delete existingDict.distanceMeters;
-          delete existingDict.distance;
-          delete existingDict.upsellItemType;
-          delete existingDict.viewed;
-          delete existingDict.tapped;
-          delete existingDict.isBlockable;
-          delete existingDict.hasChattedInLast24Hrs;
-          delete existingDict.hasUnviewedSpark;
-          delete existingDict.isFavorite;
-          delete existingDict.hasUnreadThrob;
-          delete existingDict['@type'];
-
-          const mergedData = { ...existingDict, ...card };
-          const rawData = JSON.stringify(mergedData);
-          
-          const displayName = mergedData.displayName ?? null;
-          const age = typeof mergedData.age === 'number' ? mergedData.age : null;
-          
-          const mergedPfpHash = typeof mergedData.primaryImageUrl === 'string'
-            ? extractMediaHash(mergedData.primaryImageUrl)
-            : (mergedData.profileImageMediaHash ?? null);
-          const profileImageMediaHash = mergedPfpHash || null;
-
-          const diffJson = generateReverseDiff(existing.rawData, rawData);
-
-          if (diffJson) {
-            await tx.grindrProfileHistory.create({
-              data: { profileId, diffJson }
-            });
-            await tx.grindrProfile.update({
-              where: { id: profileId },
-              data: { displayName, age, profileImageMediaHash, onlineUntil, rawData }
-            });
-          } else {
-            await tx.grindrProfile.update({
-              where: { id: profileId },
-              data: { lastSeen: new Date() }
-            });
-          }
-        }
-
-        if (distance !== null && geohash !== null && geohash.length > 0) {
-          const distanceExists = await tx.grindrProfileDistance.findFirst({
-            where: { profileId, distance, geohash }
-          });
-
-          if (!distanceExists) {
-            await tx.grindrProfileDistance.create({
-              data: { profileId, distance, geohash }
-            });
-          }
-        }
-      });
-
-      savedCount++;
-    } catch (error) {
-      console.error(`[sync_grid] Failed to sync profile ${profileId}:`, error);
-    }
+    cards.set(profileId, { profileId, card, distance, onlineUntil, pfpHash });
   }
 
-  ws.sendSuccess('sync_grid', `Grid synced: ${savedCount}/${profiles.length} profiles saved`, {
-    savedCount,
+  ws.sendSuccess('sync_grid', `Grid received: ${cards.size}/${profiles.length} profiles queued`, {
+    savedCount: cards.size,
     totalCount: profiles.length,
     missingMediaHashes: Array.from(missingMediaHashesSet)
   });
+
+  saveGridCards([...cards.values()], geohash).catch((error) => {
+    console.error(`[sync_grid] Failed to save ${cards.size} profiles:`, error);
+  });
+}
+
+async function saveGridCards(cards: GridCard[], geohash: string | null): Promise<void> {
+  if (cards.length === 0) return;
+  const profileIds = cards.map((entry) => entry.profileId);
+
+  const [existingProfiles, existingDistances] = await Promise.all([
+    prisma.grindrProfile.findMany({
+      where: { id: { in: profileIds } },
+      select: { id: true, rawData: true }
+    }),
+    geohash
+      ? prisma.grindrProfileDistance.findMany({
+        where: { profileId: { in: profileIds }, geohash },
+        select: { profileId: true, distance: true }
+      })
+      : Promise.resolve([])
+  ]);
+
+  const existingById = new Map(existingProfiles.map((profile) => [profile.id, profile.rawData]));
+  const knownDistances = new Set(existingDistances.map((row) => `${row.profileId}|${row.distance}`));
+
+  const newProfiles: Prisma.GrindrProfileCreateManyInput[] = [];
+  const histories: Prisma.GrindrProfileHistoryCreateManyInput[] = [];
+  const changedUpdates: Prisma.PrismaPromise<unknown>[] = [];
+  const unchangedIds: string[] = [];
+  const newDistances: Prisma.GrindrProfileDistanceCreateManyInput[] = [];
+
+  for (const { profileId, card, distance, onlineUntil, pfpHash } of cards) {
+    const existingRaw = existingById.get(profileId);
+
+    if (existingRaw === undefined) {
+      newProfiles.push({
+        id: profileId,
+        displayName: card.displayName ?? null,
+        age: typeof card.age === 'number' ? card.age : null,
+        profileImageMediaHash: pfpHash,
+        onlineUntil,
+        rawData: JSON.stringify(card)
+      });
+    } else {
+      const existingDict: Record<string, any> = typeof existingRaw === 'string' ? JSON.parse(existingRaw) : {};
+      stripPrivateGridFields(existingDict);
+
+      const mergedData = { ...existingDict, ...card };
+      const rawData = JSON.stringify(mergedData);
+      const diffJson = generateReverseDiff(existingRaw, rawData);
+
+      if (diffJson) {
+        const mergedPfpHash = typeof mergedData.primaryImageUrl === 'string'
+          ? extractMediaHash(mergedData.primaryImageUrl)
+          : (mergedData.profileImageMediaHash ?? null);
+
+        histories.push({ profileId, diffJson });
+        changedUpdates.push(prisma.grindrProfile.update({
+          where: { id: profileId },
+          data: {
+            displayName: mergedData.displayName ?? null,
+            age: typeof mergedData.age === 'number' ? mergedData.age : null,
+            profileImageMediaHash: mergedPfpHash || null,
+            onlineUntil,
+            rawData
+          }
+        }));
+      } else {
+        unchangedIds.push(profileId);
+      }
+    }
+
+    if (distance !== null && geohash !== null) {
+      const key = `${profileId}|${distance}`;
+      if (!knownDistances.has(key)) {
+        knownDistances.add(key);
+        newDistances.push({ profileId, distance, geohash });
+      }
+    }
+  }
+
+  await prisma.$transaction([
+    prisma.grindrProfile.createMany({ data: newProfiles, skipDuplicates: true }),
+    ...changedUpdates,
+    prisma.grindrProfile.updateMany({ where: { id: { in: unchangedIds } }, data: { lastSeen: new Date() } }),
+    prisma.grindrProfileHistory.createMany({ data: histories }),
+    prisma.grindrProfileDistance.createMany({ data: newDistances })
+  ]);
 }
 
 export async function handleUploadMedia(

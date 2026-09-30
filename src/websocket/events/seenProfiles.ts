@@ -443,6 +443,42 @@ export async function handleUploadAlbumMedia(
   }
 }
 
+const MAX_IMAGE_LOOKUPS = 100;
+
+type ImageLookupMatch = { mediaHash: string; profileId: string | null; displayName: string | null };
+
+async function lookupProfilesByImageHashes(mediaHashes: string[]): Promise<ImageLookupMatch[]> {
+  const matches = new Map<string, { profileId: string; displayName: string | null }>();
+
+  const medias = await prisma.grindrProfileMedia.findMany({
+    where: { mediaHash: { in: mediaHashes } },
+    select: { mediaHash: true, profileId: true, profile: { select: { displayName: true } } }
+  });
+  for (const media of medias) {
+    matches.set(media.mediaHash, { profileId: media.profileId, displayName: media.profile.displayName });
+  }
+
+  const remaining = mediaHashes.filter((hash) => !matches.has(hash));
+  if (remaining.length > 0) {
+    const profiles = await prisma.grindrProfile.findMany({
+      where: { profileImageMediaHash: { in: remaining } },
+      select: { id: true, displayName: true, profileImageMediaHash: true },
+      orderBy: { lastSeen: 'desc' }
+    });
+    for (const profile of profiles) {
+      if (profile.profileImageMediaHash && !matches.has(profile.profileImageMediaHash)) {
+        matches.set(profile.profileImageMediaHash, { profileId: profile.id, displayName: profile.displayName });
+      }
+    }
+  }
+
+  return mediaHashes.map((mediaHash) => ({
+    mediaHash,
+    profileId: matches.get(mediaHash)?.profileId ?? null,
+    displayName: matches.get(mediaHash)?.displayName ?? null
+  }));
+}
+
 export async function handleGetProfileByImageHash(
   ws: AuthenticatedWebSocket,
   payload: any
@@ -453,24 +489,18 @@ export async function handleGetProfileByImageHash(
     return;
   }
 
-  const { mediaHash } = payload || {};
-  if (typeof mediaHash !== 'string') {
-    ws.sendError('get_profile_by_image', 'Invalid mediaHash');
+  const { mediaHashes } = payload || {};
+
+  if (!Array.isArray(mediaHashes) || mediaHashes.length === 0 || mediaHashes.length > MAX_IMAGE_LOOKUPS || !mediaHashes.every((hash) => typeof hash === 'string')) {
+    ws.sendError('get_profile_by_image', `mediaHashes must be 1-${MAX_IMAGE_LOOKUPS} strings`);
     return;
   }
 
   try {
-    const media = await prisma.grindrProfileMedia.findUnique({
-      where: { mediaHash },
-      select: { profileId: true }
-    });
-
-    ws.sendSuccess('get_profile_by_image', 'Lookup complete', {
-      mediaHash,
-      profileId: media ? media.profileId : null
-    });
+    const results = await lookupProfilesByImageHashes([...new Set(mediaHashes as string[])]);
+    ws.sendSuccess('get_profile_by_image', 'Lookup complete', { profiles: results });
   } catch (error) {
-    console.error(`Failed to lookup profile by media hash ${mediaHash}:`, error);
+    console.error(`Failed to lookup profiles by media hash:`, error);
     ws.sendError('get_profile_by_image', 'Failed to lookup profile by image hash');
   }
 }

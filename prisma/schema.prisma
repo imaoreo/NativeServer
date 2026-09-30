@@ -32,6 +32,8 @@ model GrindrProfile {
   history               GrindrProfileHistory[]
   medias                GrindrProfileMedia[]
   distances             GrindrProfileDistance[]
+
+  @@index([profileImageMediaHash])
 }
 
 model GrindrProfileHistory {
